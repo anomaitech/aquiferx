@@ -26,6 +26,20 @@ const ModelTimeSeries: React.FC<ModelTimeSeriesProps> = ({
   const [logExpanded, setLogExpanded] = useState(false);
 
   const wellMetrics = model.wellMetrics[well.id];
+  const hasFiniteMetrics = !!wellMetrics && Number.isFinite(wellMetrics.r2) && Number.isFinite(wellMetrics.rmse);
+
+  const modelWindowMonthlyCount = useMemo(() => {
+    const startDate = typeof model.params.startDate === 'string' ? model.params.startDate : null;
+    const endDate = typeof model.params.endDate === 'string' ? model.params.endDate : null;
+    const months = new Set<string>();
+    for (const m of measurements) {
+      if (m.wellId !== well.id || m.dataType !== 'wte') continue;
+      if (startDate && m.date < startDate) continue;
+      if (endDate && m.date > endDate) continue;
+      months.add(m.date.slice(0, 7));
+    }
+    return months.size;
+  }, [measurements, model.params.endDate, model.params.startDate, well.id]);
 
   // Get original WTE measurements for this well
   const wteMeas = useMemo(() =>
@@ -145,9 +159,23 @@ const ModelTimeSeries: React.FC<ModelTimeSeriesProps> = ({
   }, [chartData]);
 
   if (modelRows.length === 0) {
+    const rangeLabel = typeof model.params.startDate === 'string' && typeof model.params.endDate === 'string'
+      ? `${model.params.startDate} to ${model.params.endDate}`
+      : 'the model date range';
     return (
-      <div className="flex items-center justify-center h-full text-sm text-slate-400">
-        No model data for this well
+      <div className="flex h-full items-center justify-center px-6 text-center">
+        <div className="space-y-1">
+          <div className="text-sm font-medium text-slate-500">No model data for this well</div>
+          <div className="text-xs text-slate-400">
+            This well was likely omitted from the imputation run because it did not meet the model qualification threshold.
+          </div>
+          <div className="text-[11px] text-slate-400">
+            Monthly WTE observations in {rangeLabel}: <span className="font-medium text-slate-500">{modelWindowMonthlyCount}</span>
+          </div>
+          <div className="text-[11px] text-slate-400">
+            Model minimum samples: <span className="font-medium text-slate-500">{model.params.minSamples}</span>
+          </div>
+        </div>
       </div>
     );
   }
@@ -163,7 +191,7 @@ const ModelTimeSeries: React.FC<ModelTimeSeriesProps> = ({
             Combined
           </label>
         </div>
-        {wellMetrics && (
+        {hasFiniteMetrics && wellMetrics && (
           <div className="flex items-center gap-2">
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-medium">
               R² = {wellMetrics.r2.toFixed(3)}

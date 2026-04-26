@@ -44,6 +44,17 @@ function generateMonthlyDates(startDate: string, endDate: string): string[] {
   return dates;
 }
 
+function clampDateRange(
+  startDate: string,
+  endDate: string,
+  gldasStartDate: string,
+  gldasEndDate: string,
+): { min: string; max: string } | null {
+  const min = gldasStartDate > startDate ? gldasStartDate : startDate;
+  const max = gldasEndDate < endDate ? gldasEndDate : endDate;
+  return min <= max ? { min, max } : null;
+}
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
@@ -67,6 +78,10 @@ export async function runImputationPipeline(
   onProgress: (step: string, pct: number) => void,
 ): Promise<ImputationModelResult> {
   const { title, startDate, endDate, minSamples, gapSize, padSize, hiddenUnits, lambda } = input;
+  const effectiveRange = clampDateRange(startDate, endDate, input.gldasStartDate, input.gldasEndDate);
+  if (!effectiveRange) {
+    throw new Error('Selected date range does not overlap the GLDAS feature range.');
+  }
 
   // Gap/pad are already in days (matching Python's gap_size=730, pad=180)
   const gapSizeMs = gapSize * MS_PER_DAY;
@@ -95,6 +110,7 @@ export async function runImputationPipeline(
   const wteMeasurements = measurements.filter(m => m.dataType === 'wte');
   const byWell = new Map<string, Measurement[]>();
   for (const m of wteMeasurements) {
+    if (m.date < effectiveRange.min || m.date > effectiveRange.max) continue;
     if (!byWell.has(m.wellId)) byWell.set(m.wellId, []);
     byWell.get(m.wellId)!.push(m);
   }
@@ -124,7 +140,7 @@ export async function runImputationPipeline(
     qualifiedWells.push({ well, sorted });
   }
 
-  onLog(`${qualifiedWells.length} wells qualified (>= ${minSamples} measurements), ${omitted} omitted`);
+  onLog(`${qualifiedWells.length} wells qualified (>= ${minSamples} measurements in ${effectiveRange.min} to ${effectiveRange.max}), ${omitted} omitted`);
 
   if (qualifiedWells.length === 0) {
     throw new Error(`No wells have >= ${minSamples} measurements. Adjust min samples or date range.`);

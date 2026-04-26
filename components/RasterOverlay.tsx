@@ -238,6 +238,28 @@ const RasterOverlay: React.FC<RasterOverlayProps> = ({
   const { grid, frames } = analysis;
   const { nx, ny, mask, minLng, minLat, dx, dy } = grid;
 
+  const methodSummary = useMemo(() => {
+    const opts = analysis.options;
+    if (!opts) return '';
+    const temporal = opts.temporal.method === 'pchip'
+      ? 'PCHIP'
+      : opts.temporal.method === 'linear'
+        ? 'Linear'
+        : opts.temporal.method === 'moving-average'
+          ? `MA (${opts.temporal.maWindow}mo)`
+          : opts.temporal.method === 'model-direct'
+            ? `Imputed (${opts.temporal.modelCode || 'model'})`
+            : opts.temporal.method === 'model-mavg'
+              ? `Imputed MA (${opts.temporal.maWindow}mo, ${opts.temporal.modelCode || 'model'})`
+              : `Imputed (${opts.temporal.modelCode || 'model'})`;
+    const spatial = opts.spatial.method === 'kriging'
+      ? `Kriging (${opts.spatial.kriging.variogramModel})`
+      : opts.spatial.method === 'mc'
+        ? 'MC (Low-Rank)'
+        : `IDW (p=${opts.spatial.idw.exponent})`;
+    return `${temporal} -> ${spatial}`;
+  }, [analysis.options]);
+
   const activeLUT = useMemo(() => {
     const ramp = COLOR_RAMPS.find(r => r.id === selectedRamp);
     return ramp ? ramp.lut : COLOR_RAMPS[0].lut;
@@ -616,7 +638,10 @@ const RasterOverlay: React.FC<RasterOverlayProps> = ({
       {/* Animation Controls */}
       <div className="absolute left-1/2 -translate-x-1/2 z-[95] bg-white/95 backdrop-blur rounded-lg shadow-lg border border-slate-200 px-4 py-2 flex items-center gap-3"
         style={{ bottom: '8px' }}>
-        <span className="text-xs font-medium text-slate-600 mr-1">{analysis.title}</span>
+        <div className="flex flex-col mr-1">
+          <span className="text-xs font-medium text-slate-600">{analysis.title}</span>
+          {methodSummary && <span className="text-[10px] text-slate-400">{methodSummary}</span>}
+        </div>
 
         <button onClick={() => setPlaying(!playing)}
           className="p-1.5 rounded-md hover:bg-slate-100 transition-colors">

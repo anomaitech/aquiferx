@@ -13,6 +13,32 @@ npm install
 npm run dev
 ```
 
+## Bundled MC+LNN Imputer
+
+This repository also bundles a standalone Python backend at `python/mc_lnn_imputer`.
+
+Pipeline:
+- `small-gap`: `LNN-CFC auxiliary`
+- `large-gap`: iterative `SoftImpute MC -> LNN refinement`
+
+Included inputs:
+- `python/mc_lnn_imputer/datas/measurements_till_2023_to_lnn_imputation.csv`
+- `python/mc_lnn_imputer/datas/lnn_imputation_gslb_gldas_df_excercise.csv`
+
+Install Python dependencies:
+
+```bash
+npm run impute:mc-lnn:install
+```
+
+Run the standalone GSLB imputer:
+
+```bash
+npm run impute:mc-lnn:gslb
+```
+
+Outputs are written to `python/mc_lnn_imputer/output/`.
+
 ## License
 
 MIT

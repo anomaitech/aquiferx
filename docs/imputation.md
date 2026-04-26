@@ -1,5 +1,21 @@
 # Imputing Data Gaps
 
+## Bundled MC+LNN backend
+
+AquiferX now ships with a standalone Python backend in `python/mc_lnn_imputer` for the Great Salt Lake Basin workflow. This is separate from the browser ELM pipeline described below. The bundled backend runs the validated two-stage process:
+
+1. `small-gap` imputation with `LNN-CFC auxiliary`
+2. `large-gap` imputation with iterative `SoftImpute MC -> LNN refinement`
+
+The backend includes the required GSLB measurement and auxiliary CSV files and can run independently from the frontend:
+
+```bash
+npm run impute:mc-lnn:install
+npm run impute:mc-lnn:gslb
+```
+
+Outputs are written to `python/mc_lnn_imputer/output/`.
+
 Groundwater monitoring records are rarely complete. Wells get measured on irregular schedules, monitoring programs start and stop, funding changes, sensors fail, and the net result is a time series with gaps of months or years between contiguous runs of observations. For any analysis that benefits from continuous input — spatial interpolation at evenly-spaced frames, trend work over a uniform window, comparison across wells that happen to be measured on different schedules — those gaps have to be filled somehow. Aquifer Analyst's **Impute Data** workflow does this with a two-layer approach: a smooth interpolation through the measured intervals, and a machine-learning model that predicts values in the gaps and extrapolates beyond the last measurement.
 
 The two layers handle different parts of the record. Within a well's measurement span, PCHIP interpolation produces monthly values that follow the actual observations closely. Outside that span — before the earliest measurement, after the latest, or across gaps longer than a configurable threshold — an Extreme Learning Machine (ELM) trained on soil moisture data from NASA's Global Land Data Assimilation System (GLDAS) fills in predictions based on climate signals that correlate with water table behavior at the well. The combined output is a continuous monthly series across your chosen date range, with the boundary between measurement-driven and model-driven regions smoothed so it doesn't jump visibly.

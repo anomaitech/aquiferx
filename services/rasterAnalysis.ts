@@ -8,6 +8,7 @@ import { isPointInGeoJSON } from '../utils/geo';
 import { interpolatePCHIP, interpolateLinear, kernelSmooth, smoothModelCombined } from '../utils/interpolation';
 import { krigGrid, estimateVariogramParams } from './kriging';
 import { idwGrid } from './idw';
+import { softImpute } from './mcSoftImpute';
 import { slugify } from '../utils/strings';
 
 export interface RasterPipelineInput {
@@ -20,6 +21,43 @@ export interface RasterPipelineInput {
   };
   general: GeneralInterpolationOptions;
   title: string;
+}
+
+function buildCompletedMcWellValues(
+  wellInterp: Map<string, { well: Well; values: (number | null)[] }>
+): Map<string, { well: Well; values: (number | null)[] }> {
+  const entries = Array.from(wellInterp.entries());
+  if (!entries.length) return new Map();
+  const nWells = entries.length;
+  const nTimes = entries[0][1].values.length;
+  if (!nTimes) return new Map(entries);
+
+  const matrix: number[][] = Array.from({ length: nTimes }, (_, t) =>
+    entries.map(([, entry]) => {
+      const v = entry.values[t];
+      return v == null ? Number.NaN : v;
+    })
+  );
+
+  const rank = Math.max(1, Math.min(8, nWells, nTimes));
+  const completed = softImpute(matrix, {
+    rank,
+    shrinkage: 0,
+    maxIterations: 80,
+    tolerance: 1e-5,
+  }).completed;
+
+  const out = new Map<string, { well: Well; values: (number | null)[] }>();
+  for (let w = 0; w < entries.length; w++) {
+    const [wellId, entry] = entries[w];
+    const values: (number | null)[] = new Array(nTimes);
+    for (let t = 0; t < nTimes; t++) {
+      const original = entry.values[t];
+      values[t] = original != null ? original : completed[t]?.[w] ?? null;
+    }
+    out.set(wellId, { well: entry.well, values });
+  }
+  return out;
 }
 
 // Generate interval dates between start and end (inclusive) as ISO strings
@@ -276,6 +314,10 @@ export async function runRasterAnalysis(
     }
   }
 
+  const spatialWellValues = spatial.method === 'mc'
+    ? buildCompletedMcWellValues(wellInterp)
+    : wellInterp;
+
   // Step 4: Compute variogram from all wells' mean values (kriging only)
   let variogramParams: { sill: number; range: number; nugget: number } | undefined;
 
@@ -284,7 +326,7 @@ export async function runRasterAnalysis(
     const allWellLngs: number[] = [];
     const allWellMeanValues: number[] = [];
 
-    for (const [, { well, values }] of wellInterp) {
+    for (const [, { well, values }] of spatialWellValues) {
       const validValues = values.filter((v): v is number => v !== null);
       if (validValues.length > 0) {
         allWellLats.push(well.lat);
@@ -305,7 +347,7 @@ export async function runRasterAnalysis(
   const frames: RasterFrame[] = [];
 
   for (let ti = 0; ti < intervalDates.length; ti++) {
-    const methodLabel = spatial.method === 'kriging' ? 'Kriging' : 'IDW';
+    const methodLabel = spatial.method === 'kriging' ? 'Kriging' : spatial.method === 'mc' ? 'MC' : 'IDW';
     onProgress(`${methodLabel} timestep ${ti + 1}/${intervalDates.length}...`, 30 + (ti / intervalDates.length) * 50);
     await yieldToUI();
 
@@ -314,7 +356,7 @@ export async function runRasterAnalysis(
     const activeLngs: number[] = [];
     const activeValues: number[] = [];
 
-    for (const [, { well, values }] of wellInterp) {
+    for (const [, { well, values }] of spatialWellValues) {
       const val = values[ti];
       if (val !== null) {
         activeLats.push(well.lat);
@@ -379,7 +421,7 @@ export async function runRasterAnalysis(
   const stats: RasterFrameStats[] = [];
   for (let ti = 0; ti < intervalDates.length; ti++) {
     const vals: number[] = [];
-    for (const [, { values }] of wellInterp) {
+    for (const [, { values }] of spatialWellValues) {
       const v = values[ti];
       if (v !== null) vals.push(v);
     }

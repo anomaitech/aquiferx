@@ -55,6 +55,8 @@ interface MapViewProps {
   wellColors?: Map<string, string> | null;
   aquiferColors?: Map<string, string> | null;
   rasterActiveWellIds?: Set<string> | null;
+  minObs: number;
+  onMinObsChange: (value: number) => void;
   onRegionClick: (r: Region) => void;
   onAquiferClick: (a: Aquifer) => void;
   onWellClick: (w: Well, shiftKey: boolean) => void;
@@ -80,6 +82,8 @@ const MapView = forwardRef<MapViewHandle, MapViewProps>(({
   wellColors,
   aquiferColors,
   rasterActiveWellIds,
+  minObs,
+  onMinObsChange,
   onRegionClick,
   onAquiferClick,
   onWellClick,
@@ -134,7 +138,6 @@ const MapView = forwardRef<MapViewHandle, MapViewProps>(({
 
   const [currentBasemap, setCurrentBasemap] = useState<keyof typeof BASEMAPS>('OpenStreetMap');
   const [isBasemapMenuOpen, setIsBasemapMenuOpen] = useState(false);
-  const [minObs, setMinObs] = useState(0);
   const [showAquiferNames, setShowAquiferNames] = useState(true);
   const [showAquiferIds, setShowAquiferIds] = useState(false);
   const [showWellIds, setShowWellIds] = useState(false);
@@ -823,7 +826,7 @@ const MapView = forwardRef<MapViewHandle, MapViewProps>(({
               min={0}
               step={1}
               value={minObs}
-              onChange={(e) => setMinObs(Math.max(0, parseInt(e.target.value) || 0))}
+              onChange={(e) => onMinObsChange(Math.max(0, parseInt(e.target.value) || 0))}
               className="w-14 text-xs text-center border border-slate-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
             />
           </div>

@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "impute:mc-lnn:install": "python3 -m pip install -r python/mc_lnn_imputer/requirements.txt",
+    "impute:mc-lnn:gslb": "python3 python/mc_lnn_imputer/app/impute_gslb_full_iterative_softimpute.py"
   },
   "dependencies": {
     "@types/leaflet": "^1.9.21",

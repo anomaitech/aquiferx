@@ -29,6 +29,32 @@ type Step = 1 | 2 | 3 | 'running' | 'complete';
 
 const STEP_LABELS = ['Temporal', 'Spatial', 'Title & Run'];
 
+function formatTemporalMethodLabel(
+  method: 'pchip' | 'linear' | 'moving-average' | 'model' | 'model-direct' | 'model-mavg',
+  maWindow: number,
+  modelCode: string,
+): string {
+  switch (method) {
+    case 'pchip': return 'pchip';
+    case 'linear': return 'linear';
+    case 'moving-average': return `ma${maWindow}`;
+    case 'model': return modelCode ? `model_${modelCode}` : 'model';
+    case 'model-direct': return modelCode ? `model_direct_${modelCode}` : 'model_direct';
+    case 'model-mavg': return modelCode ? `model_ma${maWindow}_${modelCode}` : `model_ma${maWindow}`;
+    default: return method;
+  }
+}
+
+function formatSpatialMethodLabel(
+  spatialMethod: SpatialMethod,
+  variogramModel: VariogramModel,
+  nodalFunction: IdwNodalFunction,
+): string {
+  if (spatialMethod === 'kriging') return `kriging_${variogramModel}`;
+  if (spatialMethod === 'mc') return 'mc_lowrank';
+  return nodalFunction === 'classic' ? 'idw' : nodalFunction === 'gradient' ? 'idw_gp' : 'idw_quad';
+}
+
 const SpatialAnalysisDialog: React.FC<SpatialAnalysisDialogProps> = ({
   aquifer, region, wells, measurements, dataType, existingCodes, onClose, onComplete, availableModels,
 }) => {
@@ -632,6 +658,9 @@ const SpatialAnalysisDialog: React.FC<SpatialAnalysisDialogProps> = ({
                   <button onClick={() => setSpatialMethod('idw')} className={radioCls(spatialMethod === 'idw')}>
                     IDW (Inverse Distance)
                   </button>
+                  <button onClick={() => setSpatialMethod('mc')} className={radioCls(spatialMethod === 'mc')}>
+                    MC (Low-Rank)
+                  </button>
                 </div>
               </div>
 
@@ -721,6 +750,18 @@ const SpatialAnalysisDialog: React.FC<SpatialAnalysisDialogProps> = ({
                       </div>
                     )}
                   </div>
+                </div>
+              )}
+
+              {spatialMethod === 'mc' && (
+                <div className="bg-slate-50 rounded-lg border border-slate-200 p-4 space-y-3">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wide">MC Options</h4>
+                  <p className="text-xs text-slate-600">
+                    MC uses low-rank matrix completion across the full time × well matrix, then projects the completed well field to the grid.
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    Grid projection currently uses the same IDW settings below the hood after matrix completion. No separate MC tuning is exposed yet.
+                  </p>
                 </div>
               )}
 
@@ -819,7 +860,7 @@ const SpatialAnalysisDialog: React.FC<SpatialAnalysisDialogProps> = ({
                     `MA ${smoothingMonths}mo`
                   }</div>
                   <div><span className="text-slate-400">Wells:</span> {qualifiedWellCount} qualified</div>
-                  <div><span className="text-slate-400">Method:</span> {spatialMethod === 'kriging' ? `Kriging (${variogramModel})` : `IDW (p=${idwExponent})`}</div>
+                  <div><span className="text-slate-400">Method:</span> {spatialMethod === 'kriging' ? `Kriging (${variogramModel})` : spatialMethod === 'mc' ? 'MC (Low-Rank)' : `IDW (p=${idwExponent})`}</div>
                   {spatialMethod === 'kriging' && (
                     <>
                       <div><span className="text-slate-400">Nugget:</span> {nuggetEnabled ? 'Yes' : 'No'}</div>
@@ -830,6 +871,12 @@ const SpatialAnalysisDialog: React.FC<SpatialAnalysisDialogProps> = ({
                     <>
                       <div><span className="text-slate-400">Nodal:</span> {nodalFunction}</div>
                       <div><span className="text-slate-400">Neighbors:</span> {neighborMode === 'all' ? 'All' : `Nearest ${neighborCount}`}</div>
+                    </>
+                  )}
+                  {spatialMethod === 'mc' && (
+                    <>
+                      <div><span className="text-slate-400">Projection:</span> IDW after MC completion</div>
+                      <div><span className="text-slate-400">MC Rank:</span> Auto (up to 8)</div>
                     </>
                   )}
                   {(truncateLow || truncateHigh || logInterpolation) && (
@@ -908,11 +955,9 @@ const SpatialAnalysisDialog: React.FC<SpatialAnalysisDialogProps> = ({
             {step === 2 && (
               <button onClick={() => {
                   if (!title) {
-                    const defaultTitle = spatialMethod === 'kriging' ? 'kriging'
-                      : nodalFunction === 'classic' ? 'idw'
-                      : nodalFunction === 'gradient' ? 'idw_gp'
-                      : 'idw_quad';
-                    setTitle(defaultTitle);
+                    const temporalLabel = formatTemporalMethodLabel(smoothingMethod, smoothingMonths, selectedModelCode);
+                    const spatialLabel = formatSpatialMethodLabel(spatialMethod, variogramModel, nodalFunction);
+                    setTitle(`${temporalLabel}_${spatialLabel}`);
                   }
                   setStep(3);
                 }} disabled={!step2Valid}

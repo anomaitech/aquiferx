@@ -71,6 +71,28 @@ function median(values: number[]): number {
   return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
+function getRasterMethodSummary(result: RasterAnalysisResult | null): string {
+  const opts = result?.options;
+  if (!opts) return '';
+  const temporal = opts.temporal.method === 'pchip'
+    ? 'PCHIP'
+    : opts.temporal.method === 'linear'
+      ? 'Linear'
+      : opts.temporal.method === 'moving-average'
+        ? `MA (${opts.temporal.maWindow}mo)`
+        : opts.temporal.method === 'model-direct'
+          ? `Imputed (${opts.temporal.modelCode || 'model'})`
+          : opts.temporal.method === 'model-mavg'
+            ? `Imputed MA (${opts.temporal.maWindow}mo, ${opts.temporal.modelCode || 'model'})`
+            : `Imputed (${opts.temporal.modelCode || 'model'})`;
+  const spatial = opts.spatial.method === 'kriging'
+    ? `Kriging (${opts.spatial.kriging.variogramModel})`
+    : opts.spatial.method === 'mc'
+      ? 'MC (Low-Rank)'
+      : `IDW (p=${opts.spatial.idw.exponent})`;
+  return `${temporal} -> ${spatial}`;
+}
+
 // --- Draggable / resizable floating window for expanded chart ---
 const MIN_WIN_W = 480;
 const MIN_WIN_H = 320;
@@ -216,6 +238,7 @@ const App: React.FC = () => {
   const [aquiferTrendColors, setAquiferTrendColors] = useState<Map<string, string> | null>(null);
   const [showTrends, setShowTrends] = useState(false);
   const [showWellsOnMap, setShowWellsOnMap] = useState(true);
+  const [mapMinObs, setMapMinObs] = useState(5);
   const [dateFilter, setDateFilter] = useState<{ minYear: number; maxYear: number } | null>(null);
   const [showWellIdsOnMap, setShowWellIdsOnMap] = useState(false);
   const [trendWindowYears, setTrendWindowYears] = useState(30);
@@ -1358,6 +1381,8 @@ const App: React.FC = () => {
               wellColors={showTrends ? trendColors : null}
               aquiferColors={showTrends && !selectedAquifer ? aquiferTrendColors : null}
               rasterActiveWellIds={rasterActiveWellIds}
+              minObs={mapMinObs}
+              onMinObsChange={setMapMinObs}
               onRegionClick={(r) => {
                 if (selectedRegion?.id === r.id) {
                   // Clicking the already-selected region: deselect aquifer (if any) or clear wells
@@ -1565,15 +1590,25 @@ const App: React.FC = () => {
                       ) : effectiveTab === 'storageChange' ? (
                         <>
                           {!showTabs && <BarChart3 size={18} className="text-emerald-500" />}
-                          <h3 className="font-bold text-slate-800">
-                            {allRasterResults.length > 1 ? 'Storage Change Comparison' : `Storage Change: ${rasterResult!.title}`}
-                          </h3>
+                          <div>
+                            <h3 className="font-bold text-slate-800">
+                              {allRasterResults.length > 1 ? 'Storage Change Comparison' : `Storage Change: ${rasterResult!.title}`}
+                            </h3>
+                            {allRasterResults.length === 1 && getRasterMethodSummary(rasterResult!) && (
+                              <div className="text-[11px] text-slate-400">{getRasterMethodSummary(rasterResult!)}</div>
+                            )}
+                          </div>
                         </>
                       ) : effectiveTab === 'rasterStats' ? (
                         <>
-                          <h3 className="font-bold text-slate-800">
-                            Raster Statistics: {rasterResult!.title}
-                          </h3>
+                          <div>
+                            <h3 className="font-bold text-slate-800">
+                              Raster Statistics: {rasterResult!.title}
+                            </h3>
+                            {getRasterMethodSummary(rasterResult!) && (
+                              <div className="text-[11px] text-slate-400">{getRasterMethodSummary(rasterResult!)}</div>
+                            )}
+                          </div>
                         </>
                       ) : effectiveTab === 'crossSection' && crossSectionProfile ? (
                         <>
@@ -1928,6 +1963,7 @@ const App: React.FC = () => {
           measurements={measurements}
           existingModelCodes={modelMeta.filter(m => m.aquiferId === selectedAquifer.id && m.regionId === selectedAquifer.regionId).map(m => m.code)}
           gldasDateRange={gldasDateRange}
+          minSamples={mapMinObs}
           onClose={() => setImputationDialogOpen(false)}
           onComplete={(result) => {
             setSelectedModel(result);

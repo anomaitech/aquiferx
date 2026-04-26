@@ -115,7 +115,7 @@ export type VariogramModel = 'gaussian' | 'spherical' | 'exponential';
 export type KrigingRangeMode = 'auto' | 'custom' | 'percentage';
 export type IdwNodalFunction = 'classic' | 'gradient' | 'quadratic';
 export type IdwNeighborMode = 'all' | 'nearest';
-export type SpatialMethod = 'kriging' | 'idw';
+export type SpatialMethod = 'kriging' | 'idw' | 'mc';
 
 export interface TemporalOptions {
   method: 'pchip' | 'linear' | 'moving-average' | 'model' | 'model-direct' | 'model-mavg';

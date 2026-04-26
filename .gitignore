@@ -29,3 +29,8 @@ npm-debug.log*
 
 # Cache
 .cache/
+
+# Bundled Python imputer outputs
+python/mc_lnn_imputer/output/*.csv
+python/mc_lnn_imputer/output/*.json
+python/mc_lnn_imputer/output/*.txt

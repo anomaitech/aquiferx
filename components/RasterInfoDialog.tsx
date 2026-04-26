@@ -61,7 +61,7 @@ const RasterInfoDialog: React.FC<RasterInfoDialogProps> = ({ meta, onClose }) =>
             <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">Spatial</h3>
             {opts ? (
               <div className="space-y-0">
-                <div className={rowCls}><span className={labelCls}>Method</span><span className={valueCls}>{opts.spatial.method === 'kriging' ? 'Kriging' : 'IDW'}</span></div>
+                <div className={rowCls}><span className={labelCls}>Method</span><span className={valueCls}>{opts.spatial.method === 'kriging' ? 'Kriging' : opts.spatial.method === 'mc' ? 'MC (Low-Rank)' : 'IDW'}</span></div>
                 <div className={rowCls}><span className={labelCls}>Resolution</span><span className={valueCls}>{opts.spatial.resolution} cols</span></div>
                 {opts.spatial.method === 'kriging' && (
                   <>
@@ -79,6 +79,12 @@ const RasterInfoDialog: React.FC<RasterInfoDialogProps> = ({ meta, onClose }) =>
                     <div className={rowCls}><span className={labelCls}>Exponent</span><span className={valueCls}>{opts.spatial.idw.exponent}</span></div>
                     <div className={rowCls}><span className={labelCls}>Nodal Function</span><span className={valueCls}>{opts.spatial.idw.nodalFunction}</span></div>
                     <div className={rowCls}><span className={labelCls}>Neighbors</span><span className={valueCls}>{opts.spatial.idw.neighborMode === 'all' ? 'All' : `Nearest ${opts.spatial.idw.neighborCount}`}</span></div>
+                  </>
+                )}
+                {opts.spatial.method === 'mc' && (
+                  <>
+                    <div className={rowCls}><span className={labelCls}>Completion</span><span className={valueCls}>SoftImpute low-rank matrix completion</span></div>
+                    <div className={rowCls}><span className={labelCls}>Projection</span><span className={valueCls}>IDW from completed well field</span></div>
                   </>
                 )}
               </div>

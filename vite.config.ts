@@ -1,5 +1,6 @@
 import path from 'path';
 import fs from 'fs';
+import { spawn } from 'child_process';
 import { defineConfig, loadEnv, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -476,6 +477,48 @@ function saveDataPlugin(): Plugin {
             }
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ ok: true, count: files.length }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(String(err));
+          }
+        });
+      });
+
+      server.middlewares.use('/api/impute-mc-lnn', (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.end('Method not allowed');
+          return;
+        }
+        let body = '';
+        req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+        req.on('end', () => {
+          try {
+            const payload = JSON.parse(body);
+            const scriptPath = path.resolve(__dirname, 'python/mc_lnn_imputer/app/browser_mc_lnn_request.py');
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Connection', 'keep-alive');
+            const child = spawn('python3', [scriptPath], {
+              cwd: __dirname,
+              env: { ...process.env, PYTHONUNBUFFERED: '1' },
+            });
+            let stderr = '';
+            child.stdout.on('data', chunk => { res.write(chunk); });
+            child.stderr.on('data', chunk => { stderr += chunk.toString(); });
+            child.on('error', err => {
+              res.write(JSON.stringify({ type: 'error', message: `Failed to start Python MC+LNN backend: ${String(err)}` }) + '\n');
+              res.end();
+            });
+            child.on('close', code => {
+              if (code !== 0) {
+                res.write(JSON.stringify({ type: 'error', message: stderr || `Python MC+LNN backend exited with code ${code}` }) + '\n');
+              }
+              res.end();
+            });
+            child.stdin.write(JSON.stringify(payload));
+            child.stdin.end();
           } catch (err) {
             res.statusCode = 500;
             res.end(String(err));

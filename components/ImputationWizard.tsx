@@ -6,6 +6,7 @@ import {
 } from 'recharts';
 import { Aquifer, Region, Well, Measurement, ImputationModelResult } from '../types';
 import { runImputationPipeline, ImputationPipelineInput } from '../services/imputationPipeline';
+import { runBrowserMcLnnImputationPipeline } from '../services/imputationMcLnnBrowserPipeline';
 import { slugify } from '../utils/strings';
 import PchipPreviewCanvas from './PchipPreviewCanvas';
 
@@ -16,21 +17,24 @@ interface ImputationWizardProps {
   measurements: Measurement[];
   existingModelCodes: string[];
   gldasDateRange: { min: string; max: string } | null;
+  minSamples: number;
   onClose: () => void;
   onComplete: (result: ImputationModelResult) => void;
 }
 
 type Step = 1 | 2 | 'running' | 'complete';
+type ImputationMethod = 'original-elm' | 'browser-mc-lnn';
 
 const STEP_LABELS = ['Wells & Options', 'Title & Run'];
 
 const ImputationWizard: React.FC<ImputationWizardProps> = ({
   aquifer, region, wells, measurements, existingModelCodes,
-  gldasDateRange, onClose, onComplete,
+  gldasDateRange, minSamples, onClose, onComplete,
 }) => {
   const [step, setStep] = useState<Step>(1);
   const [progressText, setProgressText] = useState('');
   const [progressPct, setProgressPct] = useState(0);
+  const [liveR2, setLiveR2] = useState<string | null>(null);
   const [result, setResult] = useState<ImputationModelResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const cancelledRef = useRef(false);
@@ -47,9 +51,9 @@ const ImputationWizard: React.FC<ImputationWizardProps> = ({
   }, [logMessages]);
 
   // --- Step 1 options ---
-  const [minSamples, setMinSamples] = useState(5);
   const [gapSizeDays, setGapSizeDays] = useState(730);
   const [padSizeDays, setPadSizeDays] = useState(180);
+  const [method, setMethod] = useState<ImputationMethod>('original-elm');
 
   // --- Step 2 ---
   const [title, setTitle] = useState('');
@@ -130,6 +134,14 @@ const ImputationWizard: React.FC<ImputationWizardProps> = ({
   const [startDate, setStartDate] = useState(defaultStartDate);
   const [endDate, setEndDate] = useState(defaultEndDate);
 
+  const effectiveDateRange = useMemo(() => {
+    if (!startDate || !endDate) return null;
+    const min = gldasDateRange?.min && gldasDateRange.min > startDate ? gldasDateRange.min : startDate;
+    const max = gldasDateRange?.max && gldasDateRange.max < endDate ? gldasDateRange.max : endDate;
+    if (min > max) return null;
+    return { min, max };
+  }, [startDate, endDate, gldasDateRange]);
+
   // Sync defaults when they compute
   useEffect(() => {
     if (defaultStartDate && !startDate) setStartDate(defaultStartDate);
@@ -141,28 +153,34 @@ const ImputationWizard: React.FC<ImputationWizardProps> = ({
 
   // Usable well count
   const usableWellCount = useMemo(() => {
-    const counts = new Map<string, number>();
+    if (!effectiveDateRange) return 0;
+    const counts = new Map<string, Set<string>>();
     for (const m of wteMeasurements) {
-      counts.set(m.wellId, (counts.get(m.wellId) || 0) + 1);
+      if (m.date < effectiveDateRange.min || m.date > effectiveDateRange.max) continue;
+      if (!counts.has(m.wellId)) counts.set(m.wellId, new Set());
+      counts.get(m.wellId)!.add(m.date.slice(0, 7));
     }
     let count = 0;
-    for (const c of counts.values()) if (c >= 2) count++;
+    for (const months of counts.values()) if (months.size >= 2) count++;
     return count;
-  }, [wteMeasurements]);
+  }, [wteMeasurements, effectiveDateRange]);
 
   // Well qualification based on minSamples
   const { qualifiedWellCount, omittedWellCount } = useMemo(() => {
-    const byWell = new Map<string, number>();
+    if (!effectiveDateRange) return { qualifiedWellCount: 0, omittedWellCount: 0 };
+    const byWell = new Map<string, Set<string>>();
     for (const m of wteMeasurements) {
-      byWell.set(m.wellId, (byWell.get(m.wellId) || 0) + 1);
+      if (m.date < effectiveDateRange.min || m.date > effectiveDateRange.max) continue;
+      if (!byWell.has(m.wellId)) byWell.set(m.wellId, new Set());
+      byWell.get(m.wellId)!.add(m.date.slice(0, 7));
     }
-    let qualified = 0, omitted = 0;
-    for (const [, count] of byWell) {
-      if (count >= minSamples) qualified++;
-      else omitted++;
+    let qualified = 0;
+    for (const well of wells) {
+      const months = byWell.get(well.id);
+      if ((months?.size ?? 0) >= minSamples) qualified++;
     }
-    return { qualifiedWellCount: qualified, omittedWellCount: omitted };
-  }, [wteMeasurements, minSamples]);
+    return { qualifiedWellCount: qualified, omittedWellCount: wells.length - qualified };
+  }, [wteMeasurements, wells, minSamples, effectiveDateRange]);
 
   // GLDAS range info
   const gldasInfo = useMemo(() => {
@@ -179,6 +197,7 @@ const ImputationWizard: React.FC<ImputationWizardProps> = ({
     setStep('running');
     setErrorMessage(null);
     setLogMessages([]);
+    setLiveR2(null);
 
     const input: ImputationPipelineInput = {
       title,
@@ -195,22 +214,27 @@ const ImputationWizard: React.FC<ImputationWizardProps> = ({
 
     try {
       const logAccumulator: string[] = [];
-      const result = await runImputationPipeline(
-        input, aquifer, region, wells,
-        measurements.filter(m => wellKeySet.has(`${m.regionId}:${m.aquiferId}:${m.wellId}`)),
-        (msg) => {
-          if (!cancelledRef.current) {
-            logAccumulator.push(msg);
-            setLogMessages([...logAccumulator]);
-          }
-        },
-        (stepText, pct) => {
-          if (!cancelledRef.current) {
-            setProgressText(stepText);
-            setProgressPct(pct);
-          }
-        },
-      );
+      const scopedMeasurements = measurements.filter(m => wellKeySet.has(`${m.regionId}:${m.aquiferId}:${m.wellId}`));
+      const handleLog = (msg: string) => {
+        if (!cancelledRef.current) {
+          logAccumulator.push(msg);
+          setLogMessages([...logAccumulator]);
+          const match = msg.match(/supportR²=([0-9.+-]+)/i)
+            || msg.match(/supportR2=([0-9.+-]+)/i)
+            || msg.match(/small-gap R²=([0-9.+-]+)/i)
+            || msg.match(/small-gap R2=([0-9.+-]+)/i);
+          if (match) setLiveR2(match[1]);
+        }
+      };
+      const handleProgress = (stepText: string, pct: number) => {
+        if (!cancelledRef.current) {
+          setProgressText(stepText);
+          setProgressPct(pct);
+        }
+      };
+      const result = method === 'browser-mc-lnn'
+        ? await runBrowserMcLnnImputationPipeline(input, aquifer, region, wells, scopedMeasurements, handleLog, handleProgress)
+        : await runImputationPipeline(input, aquifer, region, wells, scopedMeasurements, handleLog, handleProgress);
 
       if (!cancelledRef.current) {
         result.log = logAccumulator;
@@ -231,6 +255,7 @@ const ImputationWizard: React.FC<ImputationWizardProps> = ({
     setStep(1);
     setProgressPct(0);
     setProgressText('');
+    setLiveR2(null);
     setErrorMessage(null);
   };
 
@@ -280,6 +305,18 @@ const ImputationWizard: React.FC<ImputationWizardProps> = ({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <div className="font-semibold">Bundled standalone MC+LNN backend</div>
+            <div className="mt-1">
+              This wizard runs the browser ELM pipeline. The repository also includes a standalone Python backend at
+              <code className="mx-1 rounded bg-amber-100 px-1 py-0.5">python/mc_lnn_imputer</code>
+              for the validated GSLB workflow:
+              <span className="font-medium"> small-gap LNN-CFC auxiliary</span>
+              {' -> '}
+              <span className="font-medium">large-gap iterative SoftImpute MC + LNN</span>.
+            </div>
+          </div>
+
           {/* ===== STEP 1: Wells & Options ===== */}
           {step === 1 && (
             <div className="space-y-5">
@@ -344,6 +381,18 @@ const ImputationWizard: React.FC<ImputationWizardProps> = ({
 
               {/* Date Controls */}
               <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className={labelCls}>Imputation Method</label>
+                  <select className={inputCls} value={method} onChange={e => setMethod(e.target.value as ImputationMethod)}>
+                    <option value="original-elm">Original PCHIP + ELM</option>
+                    <option value="browser-mc-lnn">MC + LNN (Validated Python)</option>
+                  </select>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    {method === 'browser-mc-lnn'
+                      ? 'Runs the validated local Python backend: small-gap LNN-CFC auxiliary, then iterative SoftImpute MC -> LNN.'
+                      : 'Original AquiferX pipeline using PCHIP with ELM model fill.'}
+                  </p>
+                </div>
                 <div>
                   <label className={labelCls}>Output Start Date</label>
                   <div className="flex items-center gap-1">
@@ -413,23 +462,34 @@ const ImputationWizard: React.FC<ImputationWizardProps> = ({
                   </div>
                 </div>
 
-                <div>
-                  <label className={labelCls}>Min Samples / Well</label>
-                  <input type="number" value={minSamples} min={2} max={500} step={1}
-                    onChange={e => setMinSamples(Math.max(2, parseInt(e.target.value) || 10))} className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls}>Gap Size (days)</label>
-                  <input type="number" value={gapSizeDays} min={1} max={7300} step={1}
-                    onChange={e => setGapSizeDays(Math.max(1, parseInt(e.target.value) || 730))} className={inputCls} />
-                  <p className="text-[10px] text-slate-400 mt-0.5">Gaps larger than this use ELM model</p>
-                </div>
-                <div>
-                  <label className={labelCls}>Pad Size (days)</label>
-                  <input type="number" value={padSizeDays} min={0} max={1800} step={1}
-                    onChange={e => setPadSizeDays(Math.max(0, parseInt(e.target.value) || 180))} className={inputCls} />
-                  <p className="text-[10px] text-slate-400 mt-0.5">PCHIP padding at gap boundaries</p>
-                </div>
+                {method === 'original-elm' ? (
+                  <>
+                    <div>
+                      <label className={labelCls}>Min Samples / Well</label>
+                      <div className={inputCls + ' bg-slate-50 text-slate-700 flex items-center justify-between'}>
+                        <span>{minSamples}</span>
+                        <span className="text-[10px] text-slate-400">from map Min obs</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className={labelCls}>Gap Size (days)</label>
+                      <input type="number" value={gapSizeDays} min={1} max={7300} step={1}
+                        onChange={e => setGapSizeDays(Math.max(1, parseInt(e.target.value) || 730))} className={inputCls} />
+                      <p className="text-[10px] text-slate-400 mt-0.5">Gaps larger than this use ELM model</p>
+                    </div>
+                    <div>
+                      <label className={labelCls}>Pad Size (days)</label>
+                      <input type="number" value={padSizeDays} min={0} max={1800} step={1}
+                        onChange={e => setPadSizeDays(Math.max(0, parseInt(e.target.value) || 180))} className={inputCls} />
+                      <p className="text-[10px] text-slate-400 mt-0.5">PCHIP padding at gap boundaries</p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+                    MC + LNN uses the map Min obs threshold for qualification and runs through the validated local Python backend.
+                    Small gaps use LNN-CFC auxiliary, and remaining long gaps use iterative SoftImpute MC {'->'} LNN.
+                  </div>
+                )}
 
                 <div className="col-span-2">
                   <div className="flex items-center gap-3 text-xs">
@@ -485,11 +545,17 @@ const ImputationWizard: React.FC<ImputationWizardProps> = ({
                 <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Options Summary</h4>
                 <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-slate-600">
                   <div><span className="text-slate-400">Dates:</span> {startDate} to {endDate}</div>
-                  <div><span className="text-slate-400">Min Samples:</span> {minSamples}</div>
-                  <div><span className="text-slate-400">Gap Size:</span> {gapSizeDays} days</div>
-                  <div><span className="text-slate-400">Pad Size:</span> {padSizeDays} days</div>
-                  <div><span className="text-slate-400">Model:</span> ELM (500 units, λ=100)</div>
+                  <div><span className="text-slate-400">Method:</span> {method === 'browser-mc-lnn' ? 'MC + LNN (Validated Python)' : 'PCHIP + ELM'}</div>
                   <div><span className="text-slate-400">Wells:</span> {qualifiedWellCount} qualified</div>
+                  {method === 'original-elm' ? (
+                    <>
+                      <div><span className="text-slate-400">Min Samples:</span> {minSamples}</div>
+                      <div><span className="text-slate-400">Gap Size:</span> {gapSizeDays} days</div>
+                      <div><span className="text-slate-400">Pad Size:</span> {padSizeDays} days</div>
+                    </>
+                  ) : (
+                    <div><span className="text-slate-400">Defaults:</span> built-in MC+LNN browser settings</div>
+                  )}
                 </div>
               </div>
             </div>
@@ -506,6 +572,9 @@ const ImputationWizard: React.FC<ImputationWizardProps> = ({
                     style={{ width: `${progressPct}%` }} />
                 </div>
                 <p className="text-xs text-slate-400">{Math.round(progressPct)}%</p>
+                {liveR2 && (
+                  <p className="text-xs text-slate-500">Latest R²: <span className="font-medium text-slate-700">{liveR2}</span></p>
+                )}
               </div>
 
               {/* Log viewer */}
