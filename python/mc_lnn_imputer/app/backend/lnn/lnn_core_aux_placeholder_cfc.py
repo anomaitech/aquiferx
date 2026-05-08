@@ -376,6 +376,10 @@ def _precompute_cfc_aux_context(
         norm_data.append({
             "observed": normalize_value(d.observed, obs_scaler["min"], obs_scaler["max"])
             if d.observed is not None else None,
+            # MC placeholder: if observed is None but imputed is set,
+            # store normalized imputed value for reservoir input (not training)
+            "mc_placeholder": normalize_value(d.imputed, obs_scaler["min"], obs_scaler["max"])
+            if d.observed is None and d.imputed is not None else None,
             "auxiliaries": norm_aux,
         })
 
@@ -520,8 +524,16 @@ def run_lnn_simulation(
     gap_step_counter = 0
 
     for i, d in enumerate(norm_data):
-        # Use aux-based placeholder if available, else fall back to last/aux average
-        if placeholder_norm and i < len(placeholder_norm):
+        # Priority for reservoir input:
+        # 1. Real observation (always best)
+        # 2. MC placeholder (from upstream matrix completion — better than aux-only)
+        # 3. Aux-based placeholder (locally-weighted ridge from auxiliary data)
+        # 4. Last valid observed (fallback)
+        if d["observed"] is not None:
+            current_obs = d["observed"]
+        elif d.get("mc_placeholder") is not None:
+            current_obs = float(d["mc_placeholder"])
+        elif placeholder_norm and i < len(placeholder_norm):
             current_obs = float(placeholder_norm[i])
         else:
             current_obs = get_current_observation_value(
@@ -548,11 +560,36 @@ def run_lnn_simulation(
 
         effective_leak = leak
         if params.use_liquid_time_constant and has_aux and d["auxiliaries"]:
-            # Weighted average of aux values — informative aux drive time constant
+            # Multi-scale leak modulation:
+            # - Fast aux (soilw, index 0): modulates short-term dynamics
+            # - Slow aux (rolling averages, indices 1+): modulates memory retention
+            # Aux values are already z-score normalized, so tanh operates in consistent range
             d_aux = np.array(d["auxiliaries"], dtype=float)
-            w_slice = res_weights[:len(d_aux)]
-            aux_avg = float(np.dot(d_aux, w_slice) / max(np.sum(w_slice), 1e-10))
-            effective_leak = leak * (1.0 + 0.5 * np.tanh(aux_avg))
+            n_aux_avail = len(d_aux)
+            w_slice = res_weights[:n_aux_avail]
+
+            if n_aux_avail >= 2:
+                # Fast component: instantaneous soil moisture (index 0)
+                fast_signal = d_aux[0] * w_slice[0]
+                # Slow component: weighted average of rolling means (indices 1+)
+                slow_vals = d_aux[1:]
+                slow_w = w_slice[1:]
+                slow_denom = max(np.sum(slow_w), 1e-10)
+                slow_signal = float(np.dot(slow_vals, slow_w) / slow_denom)
+
+                # Modulation: fast drives responsiveness, slow drives memory
+                # Scale by correlation strength so weakly-correlated aux has less influence
+                max_corr_weight = float(np.max(w_slice)) if len(w_slice) > 0 else 0.5
+                modulation_strength = 0.4 * max_corr_weight  # adaptive, not hardcoded
+
+                fast_mod = modulation_strength * np.tanh(fast_signal)
+                slow_mod = 0.5 * modulation_strength * np.tanh(slow_signal)
+                effective_leak = leak * (1.0 + fast_mod) * (1.0 + slow_mod)
+            else:
+                # Single aux: simple modulation
+                aux_avg = float(np.dot(d_aux, w_slice) / max(np.sum(w_slice), 1e-10))
+                effective_leak = leak * (1.0 + 0.4 * np.tanh(aux_avg))
+
         effective_leak = max(effective_leak, 1e-6)
 
         # ---- CFC: Closed-form Continuous-time update ----
@@ -1032,6 +1069,7 @@ def optimize_lnn_params(
     mode: str = "projection",
     rng: Optional[np.random.Generator] = None,
     precomputed: Optional[Dict[str, Any]] = None,
+    optimize_metric: str = "blend",  # "kge" | "rmse" | "blend"
 ) -> SimulationParams:
     """Auto-tune LNN hyperparameters using run_lnn_simulation with aux placeholders + CFC."""
     if rng is None:
@@ -1058,17 +1096,39 @@ def optimize_lnn_params(
         )
         result = run_lnn_simulation(data, current_params, rng=rng, precomputed=shared_context)
         obs, pred = extract_observed(result)
-        kge_score = float("-inf")
+
         if obs and pred:
             kge_score = calculate_kge(obs, pred)
+            obs_arr = np.array(obs, dtype=float)
+            pred_arr = np.array(pred, dtype=float)
+            rmse = float(np.sqrt(np.mean((obs_arr - pred_arr) ** 2)))
+            obs_std = max(float(np.std(obs_arr, ddof=1)), 1e-10)
+            nrmse = rmse / obs_std
+
+            if optimize_metric == "rmse":
+                # Minimize NRMSE: score = -NRMSE (higher is better)
+                final_score = -nrmse
+            elif optimize_metric == "blend":
+                # Blend: 50% KGE + 50% (1 - NRMSE)
+                final_score = 0.5 * kge_score + 0.5 * (1.0 - nrmse)
+            else:
+                # Default: KGE
+                final_score = kge_score
+        else:
+            kge_score = float("-inf")
+            nrmse = float("inf")
+            final_score = float("-inf")
+
         outlier_indices = identify_outliers(result)
-        final_score = kge_score - (len(outlier_indices) * 0.05)
+        final_score -= len(outlier_indices) * 0.05
+
         if final_score > best_score:
             best_score = final_score
             best_params = current_params
-            print(f"  [CFC optimize] trial {trial_i+1}/{trials}: KGE={kge_score:.4f} (new best)", flush=True)
-        # Early stop if KGE is already very good
-        if best_score >= 0.9:
-            print(f"  [CFC optimize] early stop at trial {trial_i+1}/{trials}: KGE={best_score:.4f}", flush=True)
+            metric_str = f"KGE={kge_score:.4f}" if optimize_metric == "kge" else f"NRMSE={nrmse:.4f} KGE={kge_score:.4f}"
+            print(f"  [CFC optimize] trial {trial_i+1}/{trials}: {metric_str} (new best)", flush=True)
+        # Early stop if score is already very good
+        if optimize_metric == "kge" and best_score >= 0.9:
+            print(f"  [CFC optimize] early stop at trial {trial_i+1}/{trials}: score={best_score:.4f}", flush=True)
             break
     return best_params

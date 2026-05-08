@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, PROJECT_ROOT)
 
 from backend.lnn.gaps import identify_gaps
@@ -495,17 +495,24 @@ def run_mc_lnn_fold(
         return impute_timeline(tl, params, seed)
 
     mc_preds = _matrix_completion_archi_init(mod_target, target_aux, donor_obs_filled, donors, archi_preds)
-    enriched: List[Optional[float]] = []
-    for i, v in enumerate(mod_target):
-        if v is not None:
-            enriched.append(v)
-        elif i in mc_preds and np.isfinite(mc_preds[i]):
-            enriched.append(float(mc_preds[i]))
-        elif mc_only_placeholder:
-            enriched.append(0.0)
-        else:
-            enriched.append(None)
-    tl = build_aux_timeline(enriched, target_id, months, aux_lk, lat, lon, add_seasonal=True)
+
+    # Build timeline with REAL observations only
+    tl = build_aux_timeline(mod_target, target_id, months, aux_lk, lat, lon, add_seasonal=True)
+
+    # Inject MC predictions as placeholders (reservoir input, NOT training targets)
+    for i in range(len(tl)):
+        if mod_target[i] is None and i in mc_preds and np.isfinite(mc_preds[i]):
+            tl[i] = DataPoint(
+                time=tl[i].time,
+                observed=None,  # readout won't train on this
+                imputed=float(mc_preds[i]),  # MC value for reservoir input
+                instance_id=tl[i].instance_id,
+                auxiliaries=tl[i].auxiliaries,
+                date_label=tl[i].date_label,
+                latitude=tl[i].latitude,
+                longitude=tl[i].longitude,
+            )
+
     return impute_timeline(tl, params, seed)
 
 

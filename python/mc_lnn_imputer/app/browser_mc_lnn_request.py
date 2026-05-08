@@ -41,16 +41,16 @@ def build_params() -> SimulationParams:
         small_gap_auxiliary_weight=0.5,
         small_gap_use_neighbors=False,
         small_gap_max_iterations=3,
-        small_gap_optimize_trials=3,
+        small_gap_optimize_trials=8,
         ridge_alpha=1e-4,
         lnn_aux_placeholder_readout="ridge",
         lnn_aux_placeholder_spike_correction=False,
         archi_use_regional_correlation=True,
-        archi_min_correlation=0.3,
+        archi_min_correlation=0.0,
         archi_max_donors=MAX_DONORS,
         archi_correlation_weight_power=2.0,
         mc_max_donors=MAX_DONORS,
-        mc_min_correlation=MIN_DONOR_CORR,
+        mc_min_correlation=0.0,
     )
 
 
@@ -124,40 +124,36 @@ def small_gap_index_set(timeline: List[DataPoint], max_gap_threshold: int) -> se
     return out
 
 
-def prefill_small_gaps_all(raw_obs: Dict[str, List[Optional[float]]], point_template: List[Dict[str, Any]], params: SimulationParams, seed: int) -> Dict[str, List[Optional[float]]]:
+def prefill_small_gaps_pchip(raw_obs: Dict[str, List[Optional[float]]], gap_size: int = 24, pad_size: int = 6) -> Dict[str, List[Optional[float]]]:
+    """Aquiferx-style PCHIP small-gap prefill: fill all, blank large gap interiors."""
+    from scipy.interpolate import PchipInterpolator
     filled: Dict[str, List[Optional[float]]] = {}
-    sg_params = SimulationParams(
-        max_gap_threshold=min(params.max_gap_threshold, 20),
-        large_gap_threshold=params.large_gap_threshold,
-        kge_threshold=params.kge_threshold,
-        small_gap_kge_threshold=params.small_gap_kge_threshold,
-        small_gap_use_auxiliary=True,
-        small_gap_auxiliary_weight=params.small_gap_auxiliary_weight,
-        small_gap_use_neighbors=False,
-        small_gap_max_iterations=3,
-        small_gap_optimize_trials=3,
-        ridge_alpha=params.ridge_alpha,
-        lnn_aux_placeholder_readout=params.lnn_aux_placeholder_readout,
-    )
-    for idx, (wid, raw) in enumerate(raw_obs.items()):
-        pts = []
-        for i, base_point in enumerate(point_template):
-            pts.append({
-                "date": base_point["date"],
-                "time": base_point["time"],
-                "observed": raw[i],
-                "auxiliaries": list(base_point.get("auxiliaries") or []),
-            })
-        tl = build_timeline(pts, wid, add_seasonal=False)
-        small_ix = small_gap_index_set(tl, sg_params.max_gap_threshold)
-        if not small_ix:
-            filled[wid] = list(raw)
-            continue
-        res = impute_timeline_fast(tl, sg_params, seed + idx)
+    for wid, raw in raw_obs.items():
         out = list(raw)
-        for i in small_ix:
-            if raw[i] is None and i < len(res) and res[i].imputed is not None:
-                out[i] = float(res[i].imputed)
+        obs_idx = [i for i, v in enumerate(raw) if v is not None]
+        if len(obs_idx) < 3:
+            filled[wid] = out
+            continue
+        obs_vals = [raw[i] for i in obs_idx]
+        first_obs, last_obs = obs_idx[0], obs_idx[-1]
+        # Step 1: PCHIP fill everything within observation range
+        try:
+            interp = PchipInterpolator(obs_idx, obs_vals, extrapolate=False)
+            for t in range(first_obs, last_obs + 1):
+                if out[t] is None:
+                    v = interp(t)
+                    if np.isfinite(v):
+                        out[t] = float(v)
+        except Exception:
+            pass
+        # Step 2: Blank interior of large gaps
+        for g in range(len(obs_idx) - 1):
+            gap_len = obs_idx[g + 1] - obs_idx[g] - 1
+            if gap_len > gap_size:
+                blank_start = obs_idx[g] + pad_size + 1
+                blank_end = obs_idx[g + 1] - pad_size - 1
+                for t in range(max(blank_start, 0), min(blank_end + 1, len(out))):
+                    out[t] = None
         filled[wid] = out
     return filled
 
@@ -293,12 +289,15 @@ def _matrix_completion_archi_init_iter(
         for t, init_v in target_init_preds.items():
             if 0 <= t < n_times and np.isfinite(init_v) and np.isfinite(pred[t]) and target_series[t] is None:
                 pred[t] = 0.35 * float(init_v) + 0.65 * float(pred[t])
+    # MOVE.1 variance-preserving bias correction
     if len(target_obs_idx) >= 3:
         ov = M_raw[0, target_obs_idx]
         mv = pred[target_obs_idx]
-        om, os = np.mean(ov), max(np.std(ov), 1e-10)
-        mm, ms = np.mean(mv), max(np.std(mv), 1e-10)
-        pred = (pred - mm) / ms * os + om
+        om = np.mean(ov)
+        os = max(np.std(ov, ddof=1), 1e-10)
+        mm = np.mean(mv)
+        ms = max(np.std(mv, ddof=1), 1e-10)
+        pred = om + (os / ms) * (pred - mm)
     return {t: float(pred[t]) for t in range(n_times)}
 
 
@@ -319,23 +318,28 @@ def run_mc_lnn_single_pass(target_id: str, mod_target: List[Optional[float]], do
         return impute_timeline(build_timeline(pts, target_id, add_seasonal=True), params, seed)
 
     mc_preds = _matrix_completion_archi_init_iter(target_series=mod_target, target_aux=target_aux, donor_obs=donor_obs_filled, donors=donors, archi_preds=archi_preds, target_init_preds=target_init_preds)
-    enriched: List[Optional[float]] = []
-    for i, v in enumerate(mod_target):
-        if v is not None:
-            enriched.append(v)
-        elif i in mc_preds and np.isfinite(mc_preds[i]):
-            enriched.append(float(mc_preds[i]))
-        else:
-            enriched.append(None)
+
+    # MC-placeholder fix: MC predictions drive reservoir but LNN trains on real obs only
     pts = []
     for i, base_point in enumerate(point_template):
         pts.append({
             "date": base_point["date"],
             "time": base_point["time"],
-            "observed": enriched[i],
+            "observed": mod_target[i],  # real obs only
             "auxiliaries": list(base_point.get("auxiliaries") or []),
         })
-    return impute_timeline(build_timeline(pts, target_id, add_seasonal=True), params, seed)
+    tl = build_timeline(pts, target_id, add_seasonal=True)
+
+    # Inject MC predictions as placeholders (imputed field, not observed)
+    for i in range(len(tl)):
+        if mod_target[i] is None and i in mc_preds and np.isfinite(mc_preds[i]):
+            tl[i] = DataPoint(
+                time=tl[i].time, observed=None, imputed=float(mc_preds[i]),
+                instance_id=tl[i].instance_id, auxiliaries=tl[i].auxiliaries,
+                date_label=tl[i].date_label, latitude=tl[i].latitude, longitude=tl[i].longitude,
+            )
+
+    return impute_timeline(tl, params, seed)
 
 
 def compute_metrics(obs: List[float], pred: List[float]) -> Dict[str, float]:
@@ -457,8 +461,8 @@ def main() -> None:
     raw_obs: Dict[str, List[Optional[float]]] = {w["wellId"]: [p.get("observed") for p in w["points"]] for w in wells_in}
     point_templates: Dict[str, List[Dict[str, Any]]] = {w["wellId"]: w["points"] for w in wells_in}
     first_points = wells_in[0]["points"] if wells_in else []
-    emit({"type": "progress", "label": "Python MC+LNN small-gap prefill...", "pct": 28})
-    filled_obs = prefill_small_gaps_all(raw_obs, first_points, params, _rng_seed(seed, "prefill_all_iterative_browser"))
+    emit({"type": "progress", "label": "Python PCHIP small-gap prefill...", "pct": 28})
+    filled_obs = prefill_small_gaps_pchip(raw_obs, gap_size=24, pad_size=6)
 
     notes: List[str] = []
     out_wells: List[Dict[str, Any]] = []
@@ -514,7 +518,7 @@ def main() -> None:
             if raw_v is not None:
                 stage = "observed"
             elif sg_v is not None:
-                stage = "small_gap_lnn_cfc_aux"
+                stage = "small_gap_pchip"
             elif final_v is not None:
                 stage = "large_gap_mc_lnn_iterative"
             else:
@@ -526,11 +530,30 @@ def main() -> None:
                 "final": float(final_v) if final_v is not None else None,
                 "fillStage": stage,
             })
+        # Compute per-well R²/RMSE/KGE on observed points
+        obs_v = [float(raw_target[i]) for i in range(len(raw_target)) if raw_target[i] is not None and result[i].imputed is not None]
+        pred_v = [float(result[i].imputed) for i in range(len(raw_target)) if raw_target[i] is not None and result[i].imputed is not None]
+        well_r2 = float("nan")
+        well_rmse = float("nan")
+        well_kge = float("nan")
+        if len(obs_v) >= 2:
+            o_arr = np.array(obs_v)
+            p_arr = np.array(pred_v)
+            ss_tot = float(np.sum((o_arr - np.mean(o_arr)) ** 2))
+            ss_res = float(np.sum((o_arr - p_arr) ** 2))
+            well_r2 = 1 - ss_res / ss_tot if ss_tot > 1e-10 else 0.0
+            well_rmse = float(np.sqrt(np.mean((o_arr - p_arr) ** 2)))
+            well_kge = float(calculate_kge(list(o_arr), list(p_arr)))
+
         out_wells.append({"wellId": wid, "rows": rows})
         emit({
             "type": "progress",
-            "label": f"Validated Python MC + LNN... ({idx + 1}/{total_wells} wells)",
+            "label": f"Well {idx + 1}/{total_wells}: R²={well_r2:.4f}, RMSE={well_rmse:.2f}, KGE={well_kge:.4f}",
             "pct": 28 + ((idx + 1) / total_wells) * 54,
+        })
+        emit({
+            "type": "note",
+            "message": f"[{wid}] R²={well_r2:.4f} | RMSE={well_rmse:.2f} | KGE={well_kge:.4f} | obs={len(obs_v)}"
         })
 
     emit({"type": "progress", "label": "Validated Python MC + LNN complete", "pct": 84})
@@ -552,4 +575,9 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    import signal
+    signal.alarm(0)  # disable any alarm
+    try:
+        main()
+    except Exception as exc:
+        emit({"type": "error", "message": f"Python MC+LNN error: {exc}"})

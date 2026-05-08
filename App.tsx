@@ -1970,6 +1970,7 @@ const App: React.FC = () => {
             setModelMeta(prev => [...prev, {
               title: result.title,
               code: result.code,
+              method: result.method,
               aquiferId: result.aquiferId,
               aquiferName: result.aquiferName,
               regionId: result.regionId,
@@ -1996,6 +1997,7 @@ const App: React.FC = () => {
       {modelInfoMeta && (
         <ModelInfoDialog
           meta={modelInfoMeta}
+          allModels={modelMeta}
           onClose={() => setModelInfoMeta(null)}
         />
       )}

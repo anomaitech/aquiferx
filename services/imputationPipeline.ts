@@ -464,6 +464,7 @@ export async function runImputationPipeline(
   const result: ImputationModelResult = {
     title,
     code,
+    method: 'original-elm',
     aquiferId: aquifer.id,
     aquiferName: aquifer.name,
     regionId: region.id,

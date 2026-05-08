@@ -84,6 +84,36 @@ function mean(values: number[]): number | null {
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
+function computeObservedFitMetrics(
+  rows: Array<{ raw: number | null; final: number | null }>
+): ImputationWellMetrics {
+  const observed: number[] = [];
+  const predicted: number[] = [];
+
+  for (const row of rows) {
+    if (row.raw == null || row.final == null) continue;
+    observed.push(row.raw);
+    predicted.push(row.final);
+  }
+
+  if (!observed.length) {
+    return { r2: Number.NaN, rmse: Number.NaN };
+  }
+
+  const meanObserved = observed.reduce((a, b) => a + b, 0) / observed.length;
+  let ssTot = 0;
+  let ssRes = 0;
+  for (let i = 0; i < observed.length; i++) {
+    ssTot += (observed[i] - meanObserved) ** 2;
+    ssRes += (observed[i] - predicted[i]) ** 2;
+  }
+
+  return {
+    r2: ssTot === 0 ? 0 : 1 - ssRes / ssTot,
+    rmse: Math.sqrt(ssRes / observed.length),
+  };
+}
+
 function clampDateRange(
   startDate: string,
   endDate: string,
@@ -249,6 +279,7 @@ export async function runBrowserMcLnnImputationPipeline(
   const wellMetrics: Record<string, ImputationWellMetrics> = {};
 
   for (const well of mcLnn.wells) {
+    const metrics = computeObservedFitMetrics(well.rows);
     for (const row of well.rows) {
       const ts = new Date(row.date).getTime();
       if (ts < outputStartTs || ts > outputEndTs) continue;
@@ -262,7 +293,13 @@ export async function runBrowserMcLnnImputationPipeline(
         combined: row.final ?? pchipLike ?? 0,
       });
     }
-    wellMetrics[well.wellId] = { r2: Number.NaN, rmse: Number.NaN };
+    wellMetrics[well.wellId] = metrics;
+    onLog(
+      `[${well.wellId}] final-fit metrics | `
+      + `R²=${Number.isFinite(metrics.r2) ? metrics.r2.toFixed(3) : 'NA'} | `
+      + `RMSE=${Number.isFinite(metrics.rmse) ? metrics.rmse.toFixed(3) : 'NA'} | `
+      + `observedPts=${well.rows.filter(row => row.raw != null && row.final != null).length}`
+    );
   }
 
   const code = slugify(title);
@@ -284,6 +321,7 @@ export async function runBrowserMcLnnImputationPipeline(
   const result: ImputationModelResult = {
     title,
     code,
+    method: 'browser-mc-lnn',
     aquiferId: aquifer.id,
     aquiferName: aquifer.name,
     regionId: region.id,

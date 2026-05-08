@@ -232,6 +232,8 @@ export interface ImputationWellMetrics {
   rmse: number;
 }
 
+export type ImputationModelMethod = 'original-elm' | 'browser-mc-lnn' | 'browser-mc-lnn-pure';
+
 export interface ImputationDataRow {
   well_id: string;
   date: string;          // ISO date, monthly
@@ -243,6 +245,7 @@ export interface ImputationDataRow {
 export interface ImputationModelResult {
   title: string;
   code: string;
+  method: ImputationModelMethod;
   aquiferId: string;
   aquiferName: string;
   regionId: string;
@@ -259,6 +262,7 @@ export interface ImputationModelResult {
 export interface ImputationModelMeta {
   title: string;
   code: string;
+  method: ImputationModelMethod;
   aquiferId: string;
   aquiferName: string;
   regionId: string;

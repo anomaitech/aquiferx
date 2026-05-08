@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+from scipy.interpolate import PchipInterpolator
 
 
 APP_DIR = Path(__file__).resolve().parent
@@ -80,7 +81,7 @@ def impute_one_well(
             stages.append("observed")
         elif target_series[i] is not None:
             small_gap_count += 1
-            stages.append("small_gap_lnn_cfc_aux")
+            stages.append("small_gap_pchip")
         else:
             iterative_large_gap_count += 1
             stages.append("large_gap_mc_lnn_iterative")
@@ -101,7 +102,7 @@ def impute_one_well(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Standalone GSLB small-gap LNN-CFC aux + large-gap iterative MC+LNN imputer")
+    parser = argparse.ArgumentParser(description="PCHIP (small gaps) + MC-LNN (large gaps) imputer — matching aquiferx pipeline")
     parser.add_argument("--well-ids", type=str, default="", help="Comma-separated well IDs. Default: all eligible wells.")
     parser.add_argument("--output-tag", type=str, default="alleligible_iterative_softimpute_standalone")
     parser.add_argument("--seed", type=int, default=42)
@@ -136,14 +137,48 @@ def main() -> None:
     aux_lk = base.aux_lookup(aux_df)
     raw_obs = {wid: base.monthly_series(main_df, wid, months) for wid in eligible_wells}
     t0 = time.time()
-    filled_obs = base.prefill_small_gaps_all(
-        raw_obs,
-        months,
-        aux_lk,
-        latlon,
-        params,
-        base._rng_seed(args.seed, "prefill_all_iterative_standalone"),
-    )
+
+    # ── PHASE 1: PCHIP interpolation (matching aquiferx pipeline) ──
+    # PCHIP fills ALL gaps within the observation range, then large gaps
+    # (> gap_size months) get blanked back to null (keeping pad at edges).
+    # This matches the existing aquiferx interp_well() behavior.
+    gap_size = 24  # months (~730 days, matching aquiferx default gap_size=730)
+    pad_size = 6   # months (~180 days, matching aquiferx default pad=180)
+
+    filled_obs: Dict[str, List[Optional[float]]] = {}
+    for wid, raw in raw_obs.items():
+        out = list(raw)
+        obs_idx = [i for i, v in enumerate(raw) if v is not None]
+        if len(obs_idx) < 3:
+            filled_obs[wid] = out
+            continue
+
+        obs_vals = [raw[i] for i in obs_idx]
+        first_obs = obs_idx[0]
+        last_obs = obs_idx[-1]
+
+        # Step 1: PCHIP fill everything within [first_obs, last_obs]
+        try:
+            interp = PchipInterpolator(obs_idx, obs_vals, extrapolate=False)
+            for t in range(first_obs, last_obs + 1):
+                if out[t] is None:
+                    v = interp(t)
+                    if np.isfinite(v):
+                        out[t] = float(v)
+        except Exception:
+            pass
+
+        # Step 2: Blank interior of large gaps (> gap_size), keep pad at edges
+        # This leaves large gaps for MC-LNN to fill
+        for g in range(len(obs_idx) - 1):
+            gap_len = obs_idx[g + 1] - obs_idx[g] - 1
+            if gap_len > gap_size:
+                blank_start = obs_idx[g] + pad_size + 1
+                blank_end = obs_idx[g + 1] - pad_size - 1
+                for t in range(max(blank_start, 0), min(blank_end + 1, len(out))):
+                    out[t] = None
+
+        filled_obs[wid] = out
 
     series_rows: List[Dict[str, Any]] = []
     summary_rows: List[Dict[str, Any]] = []
@@ -201,7 +236,7 @@ def main() -> None:
         "missing_requested_wells": missing,
         "date_start": base.DATE_START,
         "date_end": base.DATE_END,
-        "requested_mode": "small-gap LNN-CFC auxiliary, then large-gap iterative SoftImpute MC + LNN",
+        "requested_mode": "small-gap PCHIPiliary, then large-gap iterative SoftImpute MC + LNN",
         "outer_iterations": args.outer_iterations,
         "feedback_prev_weight": args.feedback_prev_weight,
         "support_frac": args.support_frac,
@@ -215,7 +250,7 @@ def main() -> None:
 
     lines = [
         "Standalone GSLB full imputation summary",
-        "Pipeline: small-gap LNN-CFC auxiliary -> large-gap iterative SoftImpute MC + LNN",
+        "Pipeline: small-gap PCHIPiliary -> large-gap iterative SoftImpute MC + LNN",
         f"Elapsed seconds: {run_meta['elapsed_seconds']:.1f}",
         f"Target wells: {len(target_wells)}",
         "",

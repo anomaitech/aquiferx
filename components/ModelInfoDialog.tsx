@@ -4,20 +4,55 @@ import { ImputationModelMeta, ImputationWellMetrics } from '../types';
 
 interface ModelInfoDialogProps {
   meta: ImputationModelMeta;
+  allModels: ImputationModelMeta[];
   onClose: () => void;
 }
 
-const ModelInfoDialog: React.FC<ModelInfoDialogProps> = ({ meta, onClose }) => {
+function summarizeMetrics(metrics: ImputationWellMetrics[]) {
+  const finiteR2 = metrics.map(w => w.r2).filter(Number.isFinite);
+  const finiteRmse = metrics.map(w => w.rmse).filter(Number.isFinite);
+  return {
+    avgR2: finiteR2.length ? finiteR2.reduce((a, b) => a + b, 0) / finiteR2.length : null,
+    avgRmse: finiteRmse.length ? finiteRmse.reduce((a, b) => a + b, 0) / finiteRmse.length : null,
+    count: metrics.length,
+    finiteCount: Math.min(finiteR2.length, finiteRmse.length),
+  };
+}
+
+const ModelInfoDialog: React.FC<ModelInfoDialogProps> = ({ meta, allModels, onClose }) => {
   const rowCls = "flex justify-between py-1 border-b border-slate-100 last:border-0";
   const labelCls = "text-slate-400";
   const valueCls = "text-slate-700 font-medium";
 
   const wellCount = Object.keys(meta.wellMetrics).length;
   const metrics = Object.values(meta.wellMetrics) as ImputationWellMetrics[];
-  const r2Values = metrics.map(w => w.r2);
-  const rmseValues = metrics.map(w => w.rmse);
-  const avgR2 = r2Values.length > 0 ? (r2Values.reduce((a, b) => a + b, 0) / r2Values.length) : null;
-  const avgRmse = rmseValues.length > 0 ? (rmseValues.reduce((a, b) => a + b, 0) / rmseValues.length) : null;
+  const summary = summarizeMetrics(metrics);
+  const exactCounterpart = allModels.find(model =>
+    model.filePath !== meta.filePath
+    && model.regionId === meta.regionId
+    && model.aquiferId === meta.aquiferId
+    && model.dataType === meta.dataType
+    && model.params.startDate === meta.params.startDate
+    && model.params.endDate === meta.params.endDate
+    && model.params.minSamples === meta.params.minSamples
+    && model.method !== meta.method
+  ) || null;
+  const fallbackCounterpart = allModels.find(model =>
+    model.filePath !== meta.filePath
+    && model.regionId === meta.regionId
+    && model.aquiferId === meta.aquiferId
+    && model.dataType === meta.dataType
+    && model.params.startDate === meta.params.startDate
+    && model.params.endDate === meta.params.endDate
+    && model.method !== meta.method
+  ) || null;
+  const counterpart = exactCounterpart || fallbackCounterpart;
+  const counterpartSummary = counterpart
+    ? summarizeMetrics(Object.values(counterpart.wellMetrics) as ImputationWellMetrics[])
+    : null;
+  const methodLabel = meta.method === 'browser-mc-lnn' ? 'MC + LNN (Validated Python)' : 'PCHIP + ELM';
+  const counterpartMethodLabel = counterpart?.method === 'browser-mc-lnn' ? 'MC + LNN (Validated Python)' : 'PCHIP + ELM';
+  const isFallbackComparison = !!counterpart && !exactCounterpart;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40">
@@ -36,6 +71,7 @@ const ModelInfoDialog: React.FC<ModelInfoDialogProps> = ({ meta, onClose }) => {
             <div className="space-y-0">
               <div className={rowCls}><span className={labelCls}>Title</span><span className={valueCls}>{meta.title}</span></div>
               <div className={rowCls}><span className={labelCls}>Code</span><span className={valueCls}>{meta.code}</span></div>
+              <div className={rowCls}><span className={labelCls}>Method</span><span className={valueCls}>{methodLabel}</span></div>
               <div className={rowCls}><span className={labelCls}>Data Type</span><span className={valueCls}>{meta.dataType.toUpperCase()}</span></div>
               <div className={rowCls}><span className={labelCls}>Aquifer</span><span className={valueCls}>{meta.aquiferName}</span></div>
               <div className={rowCls}><span className={labelCls}>Created</span><span className={valueCls}>{meta.createdAt ? new Date(meta.createdAt).toLocaleString() : 'N/A'}</span></div>
@@ -61,13 +97,40 @@ const ModelInfoDialog: React.FC<ModelInfoDialogProps> = ({ meta, onClose }) => {
             <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">Well Metrics</h3>
             <div className="space-y-0">
               <div className={rowCls}><span className={labelCls}>Wells Modeled</span><span className={valueCls}>{wellCount}</span></div>
-              {avgR2 !== null && (
-                <div className={rowCls}><span className={labelCls}>Avg R²</span><span className={valueCls}>{avgR2.toFixed(4)}</span></div>
+              {summary.avgR2 !== null && (
+                <div className={rowCls}><span className={labelCls}>Avg R²</span><span className={valueCls}>{summary.avgR2.toFixed(4)}</span></div>
               )}
-              {avgRmse !== null && (
-                <div className={rowCls}><span className={labelCls}>Avg RMSE</span><span className={valueCls}>{avgRmse.toFixed(4)}</span></div>
+              {summary.avgRmse !== null && (
+                <div className={rowCls}><span className={labelCls}>Avg RMSE</span><span className={valueCls}>{summary.avgRmse.toFixed(4)}</span></div>
               )}
             </div>
+          </section>
+
+          <section>
+            <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">Method Comparison</h3>
+            {counterpart && counterpartSummary ? (
+              <div className="space-y-0">
+                <div className={rowCls}><span className={labelCls}>Compared Against</span><span className={valueCls}>{counterpartMethodLabel}</span></div>
+                <div className={rowCls}><span className={labelCls}>Comparison Basis</span><span className={valueCls}>{isFallbackComparison ? 'Same aquifer/date window' : 'Same aquifer/date/min samples'}</span></div>
+                {isFallbackComparison && (
+                  <div className={rowCls}><span className={labelCls}>Other Min Samples</span><span className={valueCls}>{counterpart.params.minSamples}</span></div>
+                )}
+                <div className={rowCls}><span className={labelCls}>Current Avg R²</span><span className={valueCls}>{summary.avgR2 == null ? 'N/A' : summary.avgR2.toFixed(4)}</span></div>
+                <div className={rowCls}><span className={labelCls}>Other Avg R²</span><span className={valueCls}>{counterpartSummary.avgR2 == null ? 'N/A' : counterpartSummary.avgR2.toFixed(4)}</span></div>
+                <div className={rowCls}><span className={labelCls}>Current Avg RMSE</span><span className={valueCls}>{summary.avgRmse == null ? 'N/A' : summary.avgRmse.toFixed(4)}</span></div>
+                <div className={rowCls}><span className={labelCls}>Other Avg RMSE</span><span className={valueCls}>{counterpartSummary.avgRmse == null ? 'N/A' : counterpartSummary.avgRmse.toFixed(4)}</span></div>
+                {summary.avgR2 != null && counterpartSummary.avgR2 != null && (
+                  <div className={rowCls}><span className={labelCls}>R² Delta</span><span className={valueCls}>{(summary.avgR2 - counterpartSummary.avgR2).toFixed(4)}</span></div>
+                )}
+                {summary.avgRmse != null && counterpartSummary.avgRmse != null && (
+                  <div className={rowCls}><span className={labelCls}>RMSE Delta</span><span className={valueCls}>{(summary.avgRmse - counterpartSummary.avgRmse).toFixed(4)}</span></div>
+                )}
+              </div>
+            ) : (
+              <div className="text-slate-500 text-[11px]">
+                No matching run from the other method was found for this aquifer and date window.
+              </div>
+            )}
           </section>
         </div>
 

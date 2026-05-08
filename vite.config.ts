@@ -4,6 +4,21 @@ import { spawn } from 'child_process';
 import { defineConfig, loadEnv, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
+function resolveMcLnnPythonBin() {
+  const candidates = [
+    process.env.AQX_PYTHON_BIN,
+    path.resolve(__dirname, 'python/mc_lnn_imputer/.venv/bin/python'),
+    '/Users/HenokTeklu/miniconda3/envs/canalforge-clean/bin/python',
+    'python3',
+  ].filter((value): value is string => Boolean(value));
+
+  for (const candidate of candidates) {
+    if (candidate === 'python3' || fs.existsSync(candidate)) return candidate;
+  }
+
+  return 'python3';
+}
+
 function saveDataPlugin(): Plugin {
   return {
     name: 'save-data',
@@ -276,6 +291,7 @@ function saveDataPlugin(): Plugin {
                     results.push({
                       title: data.title || file,
                       code: data.code || file.replace('.json', ''),
+                      method: data.method || 'original-elm',
                       aquiferId: data.aquiferId || '',
                       aquiferName: data.aquiferName || '',
                       regionId: data.regionId || regionId,
@@ -496,11 +512,12 @@ function saveDataPlugin(): Plugin {
           try {
             const payload = JSON.parse(body);
             const scriptPath = path.resolve(__dirname, 'python/mc_lnn_imputer/app/browser_mc_lnn_request.py');
+            const pythonBin = resolveMcLnnPythonBin();
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
             res.setHeader('Cache-Control', 'no-cache');
             res.setHeader('Connection', 'keep-alive');
-            const child = spawn('python3', [scriptPath], {
+            const child = spawn(pythonBin, [scriptPath], {
               cwd: __dirname,
               env: { ...process.env, PYTHONUNBUFFERED: '1' },
             });
