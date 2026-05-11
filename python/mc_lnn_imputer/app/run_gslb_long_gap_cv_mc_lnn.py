@@ -26,19 +26,20 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-sys.path.insert(0, PROJECT_ROOT)
+_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+_IMPUTER_ROOT = os.path.abspath(os.path.join(_APP_DIR, ".."))
+sys.path.insert(0, _APP_DIR)
 
-from backend.lnn.gaps import identify_gaps
 from backend.lnn.lnn_core_aux_placeholder_cfc import optimize_lnn_params, run_lnn_simulation
 from backend.lnn.math_utils import calculate_kge, calculate_pearson_correlation, calculate_r2
 from backend.lnn.types import DataPoint, SimulationParams
+from scipy.interpolate import PchipInterpolator
 
 warnings.filterwarnings("ignore")
 
 OUTPUT_DIR = os.path.dirname(os.path.abspath(__file__))
-TARGET_CSV = os.path.join(PROJECT_ROOT, "datas", "measurements_till_2023_to_lnn_imputation.csv")
-AUX_CSV = os.path.join(PROJECT_ROOT, "datas", "lnn_imputation_gslb_gldas_df_excercise.csv")
+TARGET_CSV = os.path.join(_IMPUTER_ROOT, "datas", "measurements_till_2023_to_lnn_imputation.csv")
+AUX_CSV = os.path.join(_IMPUTER_ROOT, "datas", "lnn_imputation_gslb_gldas_df_excercise.csv")
 
 DATE_START = "2000-01-01"
 DATE_END = "2023-12-21"
@@ -238,57 +239,68 @@ def impute_timeline(timeline: List[DataPoint], params: SimulationParams, seed: i
         return best_result if best_result is not None else run_lnn_simulation(timeline, best, rng=np.random.default_rng(seed))
 
 
-def impute_timeline_fast(timeline: List[DataPoint], params: SimulationParams, seed: int) -> List[DataPoint]:
-    with redirect_stdout(io.StringIO()):
-        best = optimize_lnn_params(timeline, params, mode="projection", rng=np.random.default_rng(seed))
-        return run_lnn_simulation(timeline, best, rng=np.random.default_rng(seed))
+def pchip_fill_series(series: List[Optional[float]], max_gap: int = 24) -> List[Optional[float]]:
+    """Fill small gaps (≤ max_gap months) using PCHIP interpolation.
+    Matches browser mcLnnPureBrowser.ts pchipFill()."""
+    out = list(series)
+    obs_idx = [i for i, v in enumerate(series) if v is not None]
+    obs_vals = [series[i] for i in obs_idx]
+    if len(obs_idx) < 3:
+        return out
 
+    # Identify small gaps
+    gaps = []
+    i = 0
+    while i < len(series):
+        if series[i] is None:
+            start = i
+            while i < len(series) and series[i] is None:
+                i += 1
+            if i - start <= max_gap:
+                gaps.append((start, i - 1))
+        else:
+            i += 1
+    if not gaps:
+        return out
 
-def small_gap_index_set(timeline: List[DataPoint], max_gap_threshold: int) -> set[int]:
-    gaps, _ = identify_gaps(timeline, max_gap_threshold)
-    out: set[int] = set()
-    for g in gaps:
-        if g["size"] <= max_gap_threshold:
-            for i in range(g["startIdx"], g["endIdx"] + 1):
-                out.add(i)
+    pchip = PchipInterpolator(obs_idx, obs_vals)
+    for g_start, g_end in gaps:
+        for t in range(g_start, g_end + 1):
+            val = float(pchip(t))
+            if np.isfinite(val):
+                out[t] = val
     return out
 
 
 def prefill_small_gaps_all(
     raw_obs: Dict[str, List[Optional[float]]],
-    months: pd.DatetimeIndex,
-    aux_lk: Dict[Tuple[int, int], List[float]],
-    latlon: Dict[str, Tuple[float, float]],
-    params: SimulationParams,
-    seed: int,
+    gap_size: int = 24,
+    pad_size: int = 6,
 ) -> Dict[str, List[Optional[float]]]:
+    """Phase 1: PCHIP small-gap fill + large-gap blanking for all wells.
+    Matches browser mcLnnPureBrowser.ts Phase 1."""
     filled: Dict[str, List[Optional[float]]] = {}
-    sg_params = SimulationParams(
-        max_gap_threshold=min(params.max_gap_threshold, 20),
-        large_gap_threshold=params.large_gap_threshold,
-        kge_threshold=params.kge_threshold,
-        small_gap_kge_threshold=params.small_gap_kge_threshold,
-        small_gap_use_auxiliary=True,
-        small_gap_auxiliary_weight=params.small_gap_auxiliary_weight,
-        small_gap_use_neighbors=False,
-        small_gap_max_iterations=3,
-        small_gap_optimize_trials=3,
-        ridge_alpha=params.ridge_alpha,
-        lnn_aux_placeholder_readout=params.lnn_aux_placeholder_readout,
-    )
-    for idx, (wid, raw) in enumerate(raw_obs.items()):
-        lat, lon = latlon[wid]
-        tl = build_aux_timeline(raw, wid, months, aux_lk, lat, lon, add_seasonal=False)
-        small_ix = small_gap_index_set(tl, sg_params.max_gap_threshold)
-        if not small_ix:
-            filled[wid] = list(raw)
-            continue
-        res = impute_timeline_fast(tl, sg_params, seed + idx)
-        out = list(raw)
-        for i in small_ix:
-            if raw[i] is None and i < len(res) and res[i].imputed is not None:
-                out[i] = float(res[i].imputed)
+    n_total = 0
+    for wid, raw in raw_obs.items():
+        # PCHIP fill all gaps first
+        out = pchip_fill_series(raw, max_gap=gap_size * 2)
+
+        # Blank interior of large gaps (keep pad_size months at edges)
+        obs_idx = [i for i, v in enumerate(raw) if v is not None]
+        for g in range(len(obs_idx) - 1):
+            gap_len = obs_idx[g + 1] - obs_idx[g] - 1
+            if gap_len > gap_size:
+                blank_start = obs_idx[g] + pad_size + 1
+                blank_end = obs_idx[g + 1] - pad_size - 1
+                for t in range(max(blank_start, 0), min(blank_end, len(out) - 1) + 1):
+                    out[t] = None
+
+        added = sum(1 for a, b in zip(out, raw) if a is not None and b is None)
+        n_total += added
         filled[wid] = out
+
+    print(f"  [Phase 1] PCHIP small gaps filled: {n_total} points across "
+          f"{len(filled)} wells", flush=True)
     return filled
 
 
@@ -564,7 +576,7 @@ def main() -> None:
 
     raw_obs: Dict[str, List[Optional[float]]] = {wid: monthly_series(main_df, wid, months) for wid in donor_pool_wells}
     t0 = time.time()
-    filled_obs = prefill_small_gaps_all(raw_obs, months, aux_lk, latlon, params, _rng_seed(args.seed, "prefill_all"))
+    filled_obs = prefill_small_gaps_all(raw_obs, gap_size=24, pad_size=6)
 
     rows: List[Dict[str, Any]] = []
     total = len(top_wells) * len(CONSECUTIVE_YEARS) * args.repeats
