@@ -86,6 +86,8 @@ const SpatialAnalysisDialog: React.FC<SpatialAnalysisDialogProps> = ({
   const [nodalFunction, setNodalFunction] = useState<IdwNodalFunction>('classic');
   const [neighborMode, setNeighborMode] = useState<IdwNeighborMode>('all');
   const [neighborCount, setNeighborCount] = useState(12);
+  const [eofModes, setEofModes] = useState(20);
+  const [eofNeighbors, setEofNeighbors] = useState(30);
 
   // --- General options (Step 2) ---
   const [truncateLow, setTruncateLow] = useState(false);
@@ -302,6 +304,10 @@ const SpatialAnalysisDialog: React.FC<SpatialAnalysisDialogProps> = ({
           nodalFunction,
           neighborMode,
           neighborCount,
+        },
+        eof: {
+          nModes: eofModes,
+          maxNeighbors: eofNeighbors,
         },
       },
       general: {
@@ -661,6 +667,9 @@ const SpatialAnalysisDialog: React.FC<SpatialAnalysisDialogProps> = ({
                   <button onClick={() => setSpatialMethod('mc')} className={radioCls(spatialMethod === 'mc')}>
                     MC (Low-Rank)
                   </button>
+                  <button onClick={() => setSpatialMethod('eof')} className={radioCls(spatialMethod === 'eof')}>
+                    EOF (Trend+SVD)
+                  </button>
                 </div>
               </div>
 
@@ -762,6 +771,32 @@ const SpatialAnalysisDialog: React.FC<SpatialAnalysisDialogProps> = ({
                   <p className="text-[11px] text-slate-500">
                     Grid projection currently uses the same IDW settings below the hood after matrix completion. No separate MC tuning is exposed yet.
                   </p>
+                </div>
+              )}
+
+              {spatialMethod === 'eof' && (
+                <div className="bg-slate-50 rounded-lg border border-slate-200 p-4 space-y-4">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wide">EOF Options</h4>
+                  <p className="text-xs text-slate-600">
+                    EOF fits a spatial trend surface (polynomial of lat/lon/elevation), then decomposes the residuals via SVD into shared temporal modes. Grid cells are predicted by interpolating the spatial loadings from nearby wells.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelCls}>EOF Modes</label>
+                      <input type="number" value={eofModes} min={3} max={50} step={1}
+                        onChange={e => setEofModes(Math.max(3, Math.min(50, parseInt(e.target.value) || 20)))}
+                        className={inputCls} />
+                      <p className="text-[10px] text-slate-400 mt-1">Number of temporal patterns to retain (20 recommended)</p>
+                    </div>
+                    <div>
+                      <label className={labelCls}>IDW Neighbors</label>
+                      <input type="number" value={eofNeighbors} min={5} max={100} step={1}
+                        onChange={e => setEofNeighbors(Math.max(5, Math.min(100, parseInt(e.target.value) || 30)))}
+                        className={inputCls} />
+                      <p className="text-[10px] text-slate-400 mt-1">Wells used to interpolate loadings (30 recommended)</p>
+                    </div>
+                  </div>
                 </div>
               )}
 

@@ -9,6 +9,7 @@ import { interpolatePCHIP, interpolateLinear, kernelSmooth, smoothModelCombined 
 import { krigGrid, estimateVariogramParams } from './kriging';
 import { idwGrid } from './idw';
 import { softImpute } from './mcSoftImpute';
+import { eofGridInterpolation } from './eofInterpolation';
 import { slugify } from '../utils/strings';
 
 export interface RasterPipelineInput {
@@ -18,6 +19,7 @@ export interface RasterPipelineInput {
     resolution: number;
     kriging: KrigingOptions;
     idw: IdwOptions;
+    eof?: { nModes: number; maxNeighbors: number };
   };
   general: GeneralInterpolationOptions;
   title: string;
@@ -312,6 +314,107 @@ export async function runRasterAnalysis(
     for (const [, entry] of wellInterp) {
       entry.values = entry.values.map(v => v !== null ? Math.log(v) : null);
     }
+  }
+
+  // EOF: process all timesteps at once (different from per-timestep kriging/IDW)
+  if (spatial.method === 'eof') {
+    onProgress('EOF interpolation...', 30);
+    await yieldToUI();
+
+    const entries = Array.from(wellInterp.entries());
+    const wellLats = entries.map(([, e]) => e.well.lat);
+    const wellLngs = entries.map(([, e]) => e.well.lng);
+    const wellElevs = entries.map(([, e]) => e.well.gse);
+    const wellValues = entries.map(([, e]) => e.values);
+    const nTimes = intervalDates.length;
+
+    // Apply log transform if needed
+    const inputValues = general.logInterpolation
+      ? wellValues.map(vals => vals.map(v => v !== null ? Math.log(v) : null))
+      : wellValues;
+
+    const eofFrames = await eofGridInterpolation({
+      wellLats, wellLngs, wellElevs, wellValues: inputValues,
+      gridLats, gridLngs, mask,
+      nModes: spatial.eof?.nModes ?? 20,
+      maxNeighbors: spatial.eof?.maxNeighbors ?? 30,
+      onProgress: (msg, pct) => onProgress(msg, 30 + pct * 0.5),
+    });
+
+    const frames: RasterFrame[] = [];
+    for (let ti = 0; ti < nTimes; ti++) {
+      let gridValues = eofFrames[ti];
+
+      // Post-processing
+      if (general.logInterpolation || general.truncateLow || general.truncateHigh) {
+        gridValues = gridValues.map(v => {
+          if (v === null) return null;
+          let val = general.logInterpolation ? Math.exp(v) : v;
+          if (general.truncateLow && val < general.truncateLowValue) val = general.truncateLowValue;
+          if (general.truncateHigh && val > general.truncateHighValue) val = general.truncateHighValue;
+          return val;
+        });
+      }
+      frames.push({ date: intervalDates[ti], values: gridValues });
+    }
+
+    // Compute stats
+    onProgress('Computing statistics...', 82);
+    await yieldToUI();
+
+    const stats: RasterFrameStats[] = [];
+    for (let ti = 0; ti < nTimes; ti++) {
+      const vals: number[] = [];
+      for (const [, { values }] of wellInterp) {
+        const v = values[ti];
+        if (v !== null) vals.push(v);
+      }
+      if (!vals.length) {
+        stats.push({ date: intervalDates[ti], count: 0, min: 0, max: 0, mean: 0, std: 0, median: 0, p25: 0, p75: 0 });
+        continue;
+      }
+      vals.sort((a, b) => a - b);
+      const n = vals.length;
+      const sum = vals.reduce((s, v) => s + v, 0);
+      const mean = sum / n;
+      const variance = vals.reduce((s, v) => s + (v - mean) ** 2, 0) / n;
+      const percentile = (p: number) => {
+        const idx = (p / 100) * (n - 1);
+        const lo = Math.floor(idx), hi = Math.ceil(idx);
+        return lo === hi ? vals[lo] : vals[lo] + (vals[hi] - vals[lo]) * (idx - lo);
+      };
+      stats.push({
+        date: intervalDates[ti], count: n,
+        min: Math.round(vals[0] * 100) / 100,
+        max: Math.round(vals[n - 1] * 100) / 100,
+        mean: Math.round(mean * 100) / 100,
+        std: Math.round(Math.sqrt(variance) * 100) / 100,
+        median: Math.round(percentile(50) * 100) / 100,
+        p25: Math.round(percentile(25) * 100) / 100,
+        p75: Math.round(percentile(75) * 100) / 100,
+      });
+    }
+
+    onProgress('Saving results...', 85);
+    await yieldToUI();
+
+    const code = slugify(title);
+    const params: RasterAnalysisParams = {
+      startDate, endDate, resolution, interval, title,
+      minObservations: temporal.minObservations,
+      minTimeSpanYears: temporal.minTimeSpan,
+      smoothingMethod: temporal.method === 'linear' ? 'linear' : temporal.method === 'moving-average' ? 'moving-average' : 'pchip',
+      smoothingMonths: temporal.maWindow,
+    };
+
+    return {
+      version: 2, title, code, aquiferId: aquifer.id, aquiferName: aquifer.name,
+      regionId: region.id, dataType, params,
+      grid: { nx, ny, dx, dy, minLat, minLng, mask },
+      frames, createdAt: new Date().toISOString(),
+      options: { temporal: { ...temporal }, spatial: { ...spatial }, general: { ...general } },
+      generatedAt: new Date().toISOString(), stats,
+    };
   }
 
   const spatialWellValues = spatial.method === 'mc'
