@@ -600,29 +600,17 @@ def mc_lnn_eof_interpolation(
         well_trend = predict_trend(well_lats, well_lons, well_elevs, coeffs, norm_params)
         target_trends = predict_trend(target_lats, target_lons, target_elevs, coeffs, norm_params)
 
-    # Step 2: Detrend — spatial trend + per-well residual mean
+    # Step 2: Detrend
     residuals = well_matrix - well_trend[np.newaxis, :]
 
-    # Per-well residual mean (the part poly didn't capture)
-    residual_means = np.mean(residuals, axis=0)  # per well
-    centered_residuals = residuals - residual_means[np.newaxis, :]  # now each column ~ 0 mean
-
-    # Step 3: EOF decomposition on CENTERED residuals
-    # EOF now captures only shared temporal patterns, not spatial level differences
+    # Step 3: EOF decomposition
     k = min(n_modes, n_wells, n_times)
-    U, S, Vt = eof_decomposition(centered_residuals, n_modes=k)
+    U, S, Vt = eof_decomposition(residuals, n_modes=k)
 
     total_var = np.sum(S**2)
     var_explained = np.cumsum(S**2) / total_var
 
-    # Step 4: Interpolate loadings AND residual means to targets
-    # IDW the per-well residual means to each target (captures local deviations from trend)
-    target_residual_means = np.zeros(n_targets)
-    for g in range(n_targets):
-        sel, weights = _idw_weights(target_lats[g], target_lons[g],
-                                    well_lats, well_lons, max_neighbors=max_neighbors)
-        target_residual_means[g] = np.sum(weights * residual_means[sel])
-
+    # Step 4: Interpolate loadings to targets
     if interpolation_method == "graph" and n_targets <= 5000:
         target_loadings_all = graph_laplacian_interpolate(
             well_lats, well_lons, well_elevs,
@@ -630,8 +618,7 @@ def mc_lnn_eof_interpolation(
             Vt, k_neighbors=graph_k_neighbors,
             bandwidth_km=graph_bandwidth_km, elev_weight=graph_elev_weight,
         )
-        # Reconstruct: trend + residual_mean + EOF temporal pattern
-        predictions = (target_trends + target_residual_means)[np.newaxis, :] + \
+        predictions = target_trends[np.newaxis, :] + \
                       (U * S[np.newaxis, :]) @ target_loadings_all
     else:
         predictions = np.zeros((n_times, n_targets))
@@ -641,7 +628,7 @@ def mc_lnn_eof_interpolation(
                 well_lats, well_lons, Vt, max_neighbors=max_neighbors,
             )
             target_residual = U @ (S * target_loadings)
-            predictions[:, g] = target_trends[g] + target_residual_means[g] + target_residual
+            predictions[:, g] = target_trends[g] + target_residual
 
     # Step 5: LNN temporal refinement (optional)
     lnn_applied = 0
