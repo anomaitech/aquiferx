@@ -28,19 +28,41 @@ Usage (drop-in for kriging):
 
 from __future__ import annotations
 
+import io
 import os
+import sys
 import tempfile
 import time as _time
+from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Optional, Tuple, Dict, List
 
 import numpy as np
 import pandas as pd
 
+# LNN imports for temporal refinement
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+if APP_DIR not in sys.path:
+    sys.path.insert(0, APP_DIR)
+
+try:
+    from backend.lnn.lnn_core_aux_placeholder_cfc import optimize_lnn_params, run_lnn_simulation
+    from backend.lnn.math_utils import calculate_kge
+    from backend.lnn.types import DataPoint, SimulationParams
+    HAS_LNN = True
+except ImportError:
+    HAS_LNN = False
+
 try:
     import netCDF4
 except ImportError:
     netCDF4 = None
+
+try:
+    from xgboost import XGBRegressor
+    HAS_XGB = True
+except ImportError:
+    HAS_XGB = False
 
 try:
     import requests
@@ -200,6 +222,79 @@ def predict_trend(lats, lons, elevs, coeffs, norm_params):
     return X @ coeffs
 
 
+# ─── Step 1b: XGBoost Trend Surface ───────────────────────────────────────────
+
+def fit_spatial_trend_xgb(well_lats, well_lons, well_elevs, well_means,
+                          exclude_idx=None):
+    """XGBoost trend surface: captures nonlinear lat/lon/elev → WTE relationship.
+
+    Features: lat, lon, elev, lat², lon², elev², lat*lon, lat*elev, lon*elev,
+              dist_to_centroid
+    """
+    if not HAS_XGB:
+        return fit_spatial_trend(well_lats, well_lons, well_elevs, well_means)
+
+    n = len(well_lats)
+
+    # Build feature matrix
+    lat_c, lon_c = np.mean(well_lats), np.mean(well_lons)
+    dist_to_center = np.sqrt((well_lats - lat_c)**2 +
+                              ((well_lons - lon_c) * np.cos(np.radians(lat_c)))**2)
+
+    X = np.column_stack([
+        well_lats, well_lons, well_elevs,
+        well_lats**2, well_lons**2, well_elevs**2,
+        well_lats * well_lons, well_lats * well_elevs, well_lons * well_elevs,
+        dist_to_center,
+    ])
+    y = well_means
+
+    # Exclude target well if doing LOO
+    if exclude_idx is not None:
+        mask = np.ones(n, dtype=bool)
+        mask[exclude_idx] = False
+        X_train, y_train = X[mask], y[mask]
+    else:
+        X_train, y_train = X, y
+
+    model = XGBRegressor(
+        n_estimators=300,
+        max_depth=5,
+        learning_rate=0.05,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        reg_alpha=1.0,
+        reg_lambda=5.0,
+        min_child_weight=3,
+        random_state=42,
+        verbosity=0,
+    )
+    model.fit(X_train, y_train)
+
+    pred = model.predict(X)
+    ss_res = np.sum((well_means - pred)**2)
+    ss_tot = np.sum((well_means - np.mean(well_means))**2)
+    r2 = 1.0 - ss_res / (ss_tot + 1e-12)
+    rmse = np.sqrt(np.mean((well_means - pred)**2))
+
+    return model, r2, rmse
+
+
+def predict_trend_xgb(model, lats, lons, elevs, all_lats_mean=None, all_lons_mean=None):
+    """Predict XGBoost trend at given coordinates."""
+    lat_c = all_lats_mean if all_lats_mean is not None else np.mean(lats)
+    lon_c = all_lons_mean if all_lons_mean is not None else np.mean(lons)
+    dist_to_center = np.sqrt((lats - lat_c)**2 +
+                              ((lons - lon_c) * np.cos(np.radians(lat_c)))**2)
+    X = np.column_stack([
+        lats, lons, elevs,
+        lats**2, lons**2, elevs**2,
+        lats * lons, lats * elevs, lons * elevs,
+        dist_to_center,
+    ])
+    return model.predict(X)
+
+
 # ─── Step 3: EOF Decomposition ────────────────────────────────────────────────
 
 def eof_decomposition(residual_matrix, n_modes=10):
@@ -224,8 +319,234 @@ def interpolate_loadings(target_lat, target_lon, well_lats, well_lons,
     """
     sel, weights = _idw_weights(target_lat, target_lon, well_lats, well_lons,
                                 exponent=2.0, max_neighbors=max_neighbors)
-    # Weighted average of loadings
     return well_loadings[:, sel] @ weights
+
+
+# ─── Step 4b: Graph Laplacian Interpolation ───────────────────────────────────
+
+def _build_graph_weights(lats, lons, elevs, k_neighbors=20, bandwidth_km=50.0,
+                         elev_weight=0.3):
+    """Build weighted adjacency matrix for spatial graph.
+
+    Edge weight = exp(-dist²/(2*bw²)) × (1 + elev_weight * elev_similarity)
+    where elev_similarity = exp(-|elev_diff|/elev_scale)
+    """
+    n = len(lats)
+    W = np.zeros((n, n))
+    bandwidth_m = bandwidth_km * 1000.0
+    elev_range = max(elevs.max() - elevs.min(), 1.0)
+    elev_scale = elev_range / 4.0  # characteristic elevation scale
+
+    for i in range(n):
+        dists = np.array([_haversine(lats[i], lons[i], lats[j], lons[j])
+                          for j in range(n)])
+        dists[i] = np.inf  # exclude self
+
+        # Select k-nearest neighbors
+        neighbors = np.argsort(dists)[:k_neighbors]
+
+        for j in neighbors:
+            dist_w = np.exp(-dists[j]**2 / (2 * bandwidth_m**2))
+            elev_sim = np.exp(-abs(elevs[i] - elevs[j]) / elev_scale)
+            edge_w = dist_w * (1.0 + elev_weight * elev_sim)
+            W[i, j] = edge_w
+            W[j, i] = edge_w  # symmetric
+
+    return W
+
+
+def graph_laplacian_interpolate(
+    well_lats, well_lons, well_elevs,
+    target_lats, target_lons, target_elevs,
+    well_values,  # (k, nWells) — loading values per mode
+    k_neighbors=20,
+    bandwidth_km=50.0,
+    elev_weight=0.3,
+):
+    """Interpolate EOF loadings using graph Laplacian harmonic extension.
+
+    Builds a graph with wells + targets as nodes. Solves:
+        f_targets = -L_tt⁻¹ @ L_tw @ f_wells
+
+    This gives the smoothest function on the graph matching well values.
+    Multi-hop: a target is influenced by distant wells through chains of
+    intermediate wells, not just direct distance.
+    """
+    n_wells = len(well_lats)
+    n_targets = len(target_lats)
+    n_modes = well_values.shape[0]
+    n_total = n_wells + n_targets
+
+    # Combined coordinates
+    all_lats = np.concatenate([well_lats, target_lats])
+    all_lons = np.concatenate([well_lons, target_lons])
+    all_elevs = np.concatenate([well_elevs, target_elevs])
+
+    # Build adjacency matrix for full graph
+    W = _build_graph_weights(all_lats, all_lons, all_elevs,
+                             k_neighbors=k_neighbors,
+                             bandwidth_km=bandwidth_km,
+                             elev_weight=elev_weight)
+
+    # Graph Laplacian: L = D - W
+    D = np.diag(W.sum(axis=1))
+    L = D - W
+
+    # Partition: wells = [0:n_wells], targets = [n_wells:]
+    L_tt = L[n_wells:, n_wells:]  # target-target
+    L_tw = L[n_wells:, :n_wells]  # target-well
+
+    # Regularize L_tt for numerical stability
+    L_tt += 1e-8 * np.eye(n_targets)
+
+    # Solve for each mode: f_target = -L_tt⁻¹ @ L_tw @ f_well
+    try:
+        L_tt_inv = np.linalg.inv(L_tt)
+    except np.linalg.LinAlgError:
+        # Fallback to IDW if graph solve fails
+        result = np.zeros((n_modes, n_targets))
+        for g in range(n_targets):
+            sel, weights = _idw_weights(target_lats[g], target_lons[g],
+                                        well_lats, well_lons, max_neighbors=20)
+            result[:, g] = well_values[:, sel] @ weights
+        return result
+
+    result = np.zeros((n_modes, n_targets))
+    for m in range(n_modes):
+        result[m, :] = -L_tt_inv @ L_tw @ well_values[m, :]
+
+    return result
+
+
+# ─── Step 5: LNN Temporal Refinement ──────────────────────────────────────────
+
+AUX_COLS = ["soilw", "soilw_yr01", "soilw_yr03", "soilw_yr05", "soilw_yr10"]
+
+def _load_gldas_aux(n_times):
+    """Load GLDAS auxiliary data for LNN input."""
+    aux_csv = os.path.join(os.path.dirname(APP_DIR), "datas",
+        "lnn_imputation_gslb_gldas_df_excercise.csv")
+    if not os.path.exists(aux_csv):
+        return None, {}
+    aux_df = pd.read_csv(aux_csv)
+    aux_df["time"] = pd.to_datetime(aux_df["time"])
+    aux_df = aux_df[(aux_df["time"] >= "2000-01-01") & (aux_df["time"] <= "2023-12-31")]
+    aux_df = aux_df.sort_values("time").set_index("time")
+    months = pd.date_range("2000-01-01", "2023-12-01", freq="MS")
+    aux_lk = {}
+    for dt, row in aux_df.iterrows():
+        aux_lk[(dt.year, dt.month)] = [
+            float(row[c]) if c in row.index and pd.notna(row[c]) else 0.0
+            for c in AUX_COLS
+        ]
+    return months, aux_lk
+
+
+def _build_lnn_params():
+    """Default LNN parameters for spatial refinement."""
+    return SimulationParams(
+        max_gap_threshold=20, large_gap_threshold=200,
+        kge_threshold=0.5, small_gap_kge_threshold=0.30,
+        ridge_alpha=1e-4, lnn_aux_placeholder_readout="ridge",
+        small_gap_optimize_trials=5,
+    )
+
+
+def lnn_refine_prediction(
+    eof_prediction: np.ndarray,      # nTimes — EOF prediction at grid cell
+    nearby_well_series: np.ndarray,  # nTimes — nearest well's observed series
+    nearby_well_lat: float,
+    nearby_well_lon: float,
+    aux_lk: dict,
+    months,
+    seed: int = 42,
+) -> np.ndarray:
+    """Refine EOF prediction using LNN transferred from nearest well.
+
+    1. Train LNN on the nearest well (has real observations from imputation)
+    2. Build target timeline: EOF predictions as pseudo-observations + GLDAS aux
+    3. Run the trained LNN on target timeline → temporally refined prediction
+
+    The LNN captures nonlinear temporal dynamics (drought lags, recharge
+    response) that EOF's linear modes miss.
+    """
+    if not HAS_LNN:
+        return eof_prediction
+
+    n_times = len(eof_prediction)
+    params = _build_lnn_params()
+
+    # Build reference well timeline (train LNN on this)
+    ref_tl = []
+    for mi in range(min(n_times, len(months))):
+        m = months[mi]
+        aux = list(aux_lk.get((m.year, m.month), [0.0] * len(AUX_COLS)))
+        aux.extend([np.sin(2 * np.pi * mi / 12.0), np.cos(2 * np.pi * mi / 12.0)])
+        ref_tl.append(DataPoint(
+            time=float(mi),
+            observed=float(nearby_well_series[mi]) if mi < len(nearby_well_series) else None,
+            instance_id="ref", auxiliaries=aux,
+            date_label=m.strftime("%Y-%m"),
+            latitude=nearby_well_lat, longitude=nearby_well_lon,
+        ))
+
+    # Train LNN on reference well
+    with redirect_stdout(io.StringIO()):
+        try:
+            best_params = optimize_lnn_params(
+                ref_tl, params, mode="projection",
+                rng=np.random.default_rng(seed),
+            )
+        except Exception:
+            return eof_prediction
+
+    # Build target timeline: EOF prediction as pseudo-observations
+    target_tl = []
+    for mi in range(min(n_times, len(months))):
+        m = months[mi]
+        aux = list(aux_lk.get((m.year, m.month), [0.0] * len(AUX_COLS)))
+        aux.extend([np.sin(2 * np.pi * mi / 12.0), np.cos(2 * np.pi * mi / 12.0)])
+        eof_val = float(eof_prediction[mi]) if np.isfinite(eof_prediction[mi]) else None
+        target_tl.append(DataPoint(
+            time=float(mi),
+            observed=eof_val,  # EOF prediction as pseudo-observation
+            instance_id="target", auxiliaries=aux,
+            date_label=m.strftime("%Y-%m"),
+            latitude=nearby_well_lat, longitude=nearby_well_lon,
+        ))
+
+    # Run LNN with transferred params — 3 ensemble runs, pick best
+    with redirect_stdout(io.StringIO()):
+        best_result = None
+        best_kge = float("-inf")
+        for it in range(3):
+            try:
+                res = run_lnn_simulation(
+                    target_tl, best_params,
+                    rng=np.random.default_rng(seed + it),
+                )
+                obs = [d.observed for d in target_tl if d.observed is not None]
+                pred = [res[i].imputed for i, d in enumerate(target_tl)
+                        if d.observed is not None and i < len(res)
+                        and res[i].imputed is not None]
+                if obs and pred and len(obs) == len(pred):
+                    k = float(calculate_kge(obs, pred))
+                    if np.isfinite(k) and k > best_kge:
+                        best_kge = k
+                        best_result = res
+            except Exception:
+                pass
+
+        if best_result is None:
+            return eof_prediction
+
+    # Extract LNN predictions
+    lnn_pred = np.array([
+        r.imputed if r.imputed is not None else eof_prediction[i]
+        for i, r in enumerate(best_result[:n_times])
+    ])
+
+    return lnn_pred
 
 
 # ─── Full Pipeline ────────────────────────────────────────────────────────────
@@ -241,54 +562,111 @@ def mc_lnn_eof_interpolation(
     n_modes: int = 10,
     max_neighbors: int = 30,
     trend_degree: int = 2,
+    trend_method: str = "poly",    # "poly" or "xgb"
+    use_lnn: bool = False,
+    lnn_max_targets: int = 500,
+    interpolation_method: str = "idw",  # "idw" or "graph"
+    graph_k_neighbors: int = 20,
+    graph_bandwidth_km: float = 50.0,
+    graph_elev_weight: float = 0.3,
+    exclude_well_idx: int = None,  # for LOO: exclude this well from XGB training
 ) -> np.ndarray:
-    """Full pipeline: Spatial Trend + EOF + IDW loading interpolation.
+    """Full pipeline: Spatial Trend + EOF + Graph/IDW loading interpolation.
 
-    Returns: nTimes × nTargets array of predicted WTE values.
+    trend_method: "poly" (polynomial) or "xgb" (XGBoost)
+    interpolation_method: "idw" or "graph"
+
+    Returns: (nTimes × nTargets predictions, info dict)
     """
     n_times, n_wells = well_matrix.shape
     n_targets = len(target_lats)
 
     # Step 1: Fit spatial trend
     well_means = np.mean(well_matrix, axis=0)
-    coeffs, norm_params, trend_r2, trend_rmse = fit_spatial_trend(
-        well_lats, well_lons, well_elevs, well_means, degree=trend_degree
-    )
 
-    # Step 2: Detrend — subtract both temporal mean AND spatial trend
-    well_trend = predict_trend(well_lats, well_lons, well_elevs, coeffs, norm_params)
-    residuals = well_matrix - well_trend[np.newaxis, :]  # remove spatial trend from each column
+    if trend_method == "xgb" and HAS_XGB:
+        xgb_model, trend_r2, trend_rmse = fit_spatial_trend_xgb(
+            well_lats, well_lons, well_elevs, well_means,
+            exclude_idx=exclude_well_idx,
+        )
+        well_trend = predict_trend_xgb(xgb_model, well_lats, well_lons, well_elevs,
+                                        np.mean(well_lats), np.mean(well_lons))
+        target_trends = predict_trend_xgb(xgb_model, target_lats, target_lons, target_elevs,
+                                           np.mean(well_lats), np.mean(well_lons))
+    else:
+        coeffs, norm_params, trend_r2, trend_rmse = fit_spatial_trend(
+            well_lats, well_lons, well_elevs, well_means, degree=trend_degree
+        )
+        well_trend = predict_trend(well_lats, well_lons, well_elevs, coeffs, norm_params)
+        target_trends = predict_trend(target_lats, target_lons, target_elevs, coeffs, norm_params)
 
-    # Step 3: EOF decomposition of residuals
+    # Step 2: Detrend — spatial trend + per-well residual mean
+    residuals = well_matrix - well_trend[np.newaxis, :]
+
+    # Per-well residual mean (the part poly didn't capture)
+    residual_means = np.mean(residuals, axis=0)  # per well
+    centered_residuals = residuals - residual_means[np.newaxis, :]  # now each column ~ 0 mean
+
+    # Step 3: EOF decomposition on CENTERED residuals
+    # EOF now captures only shared temporal patterns, not spatial level differences
     k = min(n_modes, n_wells, n_times)
-    U, S, Vt = eof_decomposition(residuals, n_modes=k)
+    U, S, Vt = eof_decomposition(centered_residuals, n_modes=k)
 
-    # Variance explained
     total_var = np.sum(S**2)
     var_explained = np.cumsum(S**2) / total_var
 
-    # Step 4: For each target, interpolate loadings and reconstruct
-    predictions = np.zeros((n_times, n_targets))
-    target_trends = predict_trend(target_lats, target_lons, target_elevs, coeffs, norm_params)
-
+    # Step 4: Interpolate loadings AND residual means to targets
+    # IDW the per-well residual means to each target (captures local deviations from trend)
+    target_residual_means = np.zeros(n_targets)
     for g in range(n_targets):
-        # Interpolate EOF loadings
-        target_loadings = interpolate_loadings(
-            target_lats[g], target_lons[g],
-            well_lats, well_lons, Vt, max_neighbors=max_neighbors,
+        sel, weights = _idw_weights(target_lats[g], target_lons[g],
+                                    well_lats, well_lons, max_neighbors=max_neighbors)
+        target_residual_means[g] = np.sum(weights * residual_means[sel])
+
+    if interpolation_method == "graph" and n_targets <= 5000:
+        target_loadings_all = graph_laplacian_interpolate(
+            well_lats, well_lons, well_elevs,
+            target_lats, target_lons, target_elevs,
+            Vt, k_neighbors=graph_k_neighbors,
+            bandwidth_km=graph_bandwidth_km, elev_weight=graph_elev_weight,
         )
+        # Reconstruct: trend + residual_mean + EOF temporal pattern
+        predictions = (target_trends + target_residual_means)[np.newaxis, :] + \
+                      (U * S[np.newaxis, :]) @ target_loadings_all
+    else:
+        predictions = np.zeros((n_times, n_targets))
+        for g in range(n_targets):
+            target_loadings = interpolate_loadings(
+                target_lats[g], target_lons[g],
+                well_lats, well_lons, Vt, max_neighbors=max_neighbors,
+            )
+            target_residual = U @ (S * target_loadings)
+            predictions[:, g] = target_trends[g] + target_residual_means[g] + target_residual
 
-        # Reconstruct: residual = U × S × loadings
-        target_residual = U @ (S * target_loadings)
-
-        # Final prediction: trend + residual
-        predictions[:, g] = target_trends[g] + target_residual
+    # Step 5: LNN temporal refinement (optional)
+    lnn_applied = 0
+    if use_lnn and HAS_LNN:
+        months, aux_lk = _load_gldas_aux(n_times)
+        if months is not None and aux_lk:
+            n_refine = min(n_targets, lnn_max_targets)
+            for g in range(n_refine):
+                sel, _ = _idw_weights(target_lats[g], target_lons[g],
+                                      well_lats, well_lons, max_neighbors=1)
+                refined = lnn_refine_prediction(
+                    predictions[:, g], well_matrix[:, sel[0]],
+                    well_lats[sel[0]], well_lons[sel[0]],
+                    aux_lk, months, seed=42 + g,
+                )
+                predictions[:, g] = refined
+                lnn_applied += 1
 
     return predictions, {
         "trend_r2": trend_r2,
         "trend_rmse": trend_rmse,
         "n_modes": k,
         "var_explained": var_explained.tolist(),
+        "lnn_refined": lnn_applied,
+        "interpolation_method": interpolation_method,
     }
 
 
@@ -426,12 +804,21 @@ def generate_nc_file_mc_lnn(
 # ─── CV ───────────────────────────────────────────────────────────────────────
 
 def eof_interpolation_cv(well_lats, well_lons, well_elevs, well_matrix,
-                         target_indices, n_modes=10, max_neighbors=30):
-    """Leave-one-out CV using EOF interpolation."""
+                         target_indices, n_modes=10, max_neighbors=30,
+                         use_lnn=False, interpolation_method="idw",
+                         graph_bandwidth_km=50.0, graph_elev_weight=0.3,
+                         trend_method="poly"):
+    """Leave-one-out CV using EOF interpolation, optionally with LNN refinement."""
     n_times, n_wells = well_matrix.shape
+
+    # Load GLDAS aux if LNN is enabled
+    months, aux_lk = None, {}
+    if use_lnn and HAS_LNN:
+        months, aux_lk = _load_gldas_aux(n_times)
+
     results = []
 
-    for target_idx in target_indices:
+    for wi, target_idx in enumerate(target_indices):
         truth = well_matrix[:, target_idx].copy()
 
         other = np.ones(n_wells, dtype=bool)
@@ -447,8 +834,27 @@ def eof_interpolation_cv(well_lats, well_lons, well_elevs, well_matrix,
             np.array([well_lons[target_idx]]),
             np.array([well_elevs[target_idx]]),
             n_modes=n_modes, max_neighbors=max_neighbors,
+            use_lnn=False,
+            interpolation_method=interpolation_method,
+            graph_bandwidth_km=graph_bandwidth_km,
+            graph_elev_weight=graph_elev_weight,
+            trend_method=trend_method,
+            exclude_well_idx=None,  # already excluded via ow_* arrays
         )
         eof_pred = pred[:, 0]
+
+        # LNN refinement of EOF prediction
+        lnn_pred = eof_pred.copy()
+        if use_lnn and HAS_LNN and months is not None and aux_lk:
+            # Find nearest well for transfer
+            sel_nn, _ = _idw_weights(well_lats[target_idx], well_lons[target_idx],
+                                     ow_lats, ow_lons, max_neighbors=1)
+            nearest_idx = sel_nn[0]
+            lnn_pred = lnn_refine_prediction(
+                eof_pred, ow_matrix[:, nearest_idx],
+                ow_lats[nearest_idx], ow_lons[nearest_idx],
+                aux_lk, months, seed=42 + wi,
+            )
 
         # IDW baseline
         sel, weights = _idw_weights(well_lats[target_idx], well_lons[target_idx],
@@ -469,12 +875,15 @@ def eof_interpolation_cv(well_lats, well_lons, well_elevs, well_matrix,
             kge = 1.0 - np.sqrt((r - 1)**2 + (alpha - 1)**2 + (beta - 1)**2)
             return {"kge": float(kge), "r2": float(r2), "rmse": rmse, "mae": mae}
 
-        results.append({
+        row = {
             "target_idx": target_idx,
             "trend_r2": info["trend_r2"],
             **{f"eof_{k}": v for k, v in _m(truth, eof_pred).items()},
             **{f"idw_{k}": v for k, v in _m(truth, idw_pred).items()},
-        })
+        }
+        if use_lnn:
+            row.update({f"lnn_{k}": v for k, v in _m(truth, lnn_pred).items()})
+        results.append(row)
 
     return results
 
@@ -546,34 +955,65 @@ if __name__ == "__main__":
     print(f"Targets: {len(target_indices)}")
     print()
 
-    # Test different mode counts
-    for n_modes in [3, 5, 10, 20, 50]:
+    # Test Polynomial vs XGBoost trend
+    print("--- Polynomial vs XGBoost Trend (IDW loading interp, 20 modes) ---")
+    for trend in ["poly", "xgb"]:
         t0 = _time.time()
         results = eof_interpolation_cv(well_lats, well_lons, well_elevs, well_matrix,
-                                        target_indices, n_modes=n_modes, max_neighbors=30)
+                                        target_indices, n_modes=20, max_neighbors=30,
+                                        trend_method=trend)
         elapsed = _time.time() - t0
-
         eof_kges = [r["eof_kge"] for r in results]
-        idw_kges = [r["idw_kge"] for r in results]
         eof_rmses = [r["eof_rmse"] for r in results]
-        idw_rmses = [r["idw_rmse"] for r in results]
+        idw_kges = [r["idw_kge"] for r in results]
         eof_wins = sum(1 for e, i in zip(eof_kges, idw_kges) if e > i)
         trend_r2 = results[0]["trend_r2"]
+        label = "XGBoost" if trend == "xgb" else "Poly   "
+        print(f"  {label}: KGE med={np.median(eof_kges):.4f} mean={np.mean(eof_kges):.4f} "
+              f"RMSE={np.mean(eof_rmses):.2f} | trend_R²={trend_r2:.4f} | "
+              f">IDW: {eof_wins}/30 | {elapsed:.1f}s")
 
-        print(f"Modes {n_modes:>3}: EOF KGE med={np.median(eof_kges):.4f} mean={np.mean(eof_kges):.4f} "
-              f"RMSE={np.mean(eof_rmses):.2f} | "
-              f"IDW KGE med={np.median(idw_kges):.4f} RMSE={np.mean(idw_rmses):.2f} | "
-              f"EOF>IDW: {eof_wins}/30 | trend_R²={trend_r2:.4f} | {elapsed:.1f}s")
-
-    # Detailed for best
+    # XGBoost with different mode counts
     print()
-    print("Per-well detail (10 modes):")
-    results = eof_interpolation_cv(well_lats, well_lons, well_elevs, well_matrix,
-                                    target_indices, n_modes=10, max_neighbors=30)
-    print(f"{'Well_ID':>20} | {'EOF_KGE':>8} {'EOF_RMSE':>8} | {'IDW_KGE':>8} {'IDW_RMSE':>8} | {'Win':>6}")
-    print("-" * 80)
-    for r, wid in sorted(zip(results, target_well_ids),
-                          key=lambda x: x[0]["eof_kge"], reverse=True):
-        win = "EOF" if r["eof_kge"] > r["idw_kge"] else "IDW"
-        print(f"{wid:>20} | {r['eof_kge']:>8.4f} {r['eof_rmse']:>8.2f} | "
-              f"{r['idw_kge']:>8.4f} {r['idw_rmse']:>8.2f} | {win:>6}")
+    print("--- XGBoost Trend + EOF at different mode counts ---")
+    for n_modes in [5, 10, 20, 50]:
+        t0 = _time.time()
+        results = eof_interpolation_cv(well_lats, well_lons, well_elevs, well_matrix,
+                                        target_indices, n_modes=n_modes, max_neighbors=30,
+                                        trend_method="xgb")
+        elapsed = _time.time() - t0
+        eof_kges = [r["eof_kge"] for r in results]
+        eof_rmses = [r["eof_rmse"] for r in results]
+        idw_kges = [r["idw_kge"] for r in results]
+        eof_wins = sum(1 for e, i in zip(eof_kges, idw_kges) if e > i)
+        print(f"  {n_modes:>2} modes: KGE med={np.median(eof_kges):.4f} "
+              f"RMSE={np.mean(eof_rmses):.2f} | >IDW: {eof_wins}/30 | {elapsed:.1f}s")
+
+    # Detailed comparison: XGBoost vs Poly
+    print()
+    print("--- Detailed: XGBoost vs Polynomial (20 modes) ---")
+    results_xgb = eof_interpolation_cv(well_lats, well_lons, well_elevs, well_matrix,
+                                        target_indices, n_modes=20, max_neighbors=30,
+                                        trend_method="xgb")
+    results_poly = eof_interpolation_cv(well_lats, well_lons, well_elevs, well_matrix,
+                                         target_indices, n_modes=20, max_neighbors=30,
+                                         trend_method="poly")
+
+    print(f"{'Well_ID':>20} | {'XGB_KGE':>8} {'XGB_RMSE':>8} | {'Poly_KGE':>8} {'Poly_RMSE':>9} | {'IDW_KGE':>8}")
+    print("-" * 90)
+    for (rx, rp, wid) in sorted(zip(results_xgb, results_poly, target_well_ids),
+                                 key=lambda x: x[0]["eof_kge"], reverse=True):
+        print(f"{wid:>20} | {rx['eof_kge']:>8.4f} {rx['eof_rmse']:>8.2f} | "
+              f"{rp['eof_kge']:>8.4f} {rp['eof_rmse']:>9.2f} | "
+              f"{rp['idw_kge']:>8.4f}")
+
+    xgb_kges = [r["eof_kge"] for r in results_xgb]
+    poly_kges = [r["eof_kge"] for r in results_poly]
+    xgb_rmses = [r["eof_rmse"] for r in results_xgb]
+    poly_rmses = [r["eof_rmse"] for r in results_poly]
+
+    print()
+    print(f"XGBoost EOF: KGE med={np.median(xgb_kges):.4f} mean={np.mean(xgb_kges):.4f} RMSE={np.mean(xgb_rmses):.2f}")
+    print(f"Poly EOF:    KGE med={np.median(poly_kges):.4f} mean={np.mean(poly_kges):.4f} RMSE={np.mean(poly_rmses):.2f}")
+    xgb_wins = sum(1 for x, p in zip(xgb_kges, poly_kges) if x > p)
+    print(f"XGBoost > Poly: {xgb_wins}/30")
