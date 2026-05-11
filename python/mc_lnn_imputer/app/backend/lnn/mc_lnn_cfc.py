@@ -35,102 +35,82 @@ from .lnn_core_aux_placeholder_cfc import (
 from .math_utils import calculate_kge, calculate_pearson_correlation
 from .gaps import identify_gaps
 
+try:
+    from scipy.interpolate import PchipInterpolator
+except ImportError:
+    PchipInterpolator = None
 
-# ─── Phase 1: Small gap fill ───────────────────────────────────────────────
 
-def _fill_small_gaps_single(well_data: List[DataPoint], params: SimulationParams,
-                             seed: int = 0) -> List[DataPoint]:
-    """Fill gaps ≤ max_gap_threshold for a single well."""
-    gaps, large_idx = identify_gaps(well_data, params.max_gap_threshold)
-    has_small = any(g['size'] <= params.max_gap_threshold for g in gaps)
-    n_obs = sum(1 for d in well_data if d.observed is not None)
+# ─── Phase 1: Small gap fill (PCHIP — matches browser pipeline) ───────────
 
-    if not has_small or n_obs < 5:
-        return well_data
+def _pchip_fill_single(well_data: List[DataPoint], max_gap: int = 24) -> List[DataPoint]:
+    """Fill gaps ≤ max_gap using PCHIP interpolation.
+    Matches the browser pchipFill() in mcLnnPureBrowser.ts."""
+    obs_idx = [i for i, d in enumerate(well_data) if d.observed is not None]
+    obs_vals = [well_data[i].observed for i in obs_idx]
 
-    try:
-        rng = np.random.default_rng(seed)
-        ctx = _precompute_cfc_aux_context(well_data, params)
-        bp = optimize_lnn_params(well_data, params, mode="projection", rng=rng, precomputed=ctx)
-        result = run_lnn_simulation(well_data, bp, rng=rng, precomputed=ctx)
+    if len(obs_idx) < 3:
+        return list(well_data)
 
-        filled = []
-        gap_len = 0
-        gap_start = 0
-        for i, d in enumerate(well_data):
-            if d.observed is None:
-                if gap_len == 0:
-                    gap_start = i
-                gap_len += 1
-            else:
-                if 0 < gap_len <= params.max_gap_threshold:
-                    for j in range(gap_start, gap_start + gap_len):
-                        imp = result[j].imputed if j < len(result) else None
-                        filled.append(DataPoint(
-                            time=well_data[j].time, observed=imp,
-                            instance_id=well_data[j].instance_id,
-                            auxiliaries=well_data[j].auxiliaries,
-                            latitude=well_data[j].latitude,
-                            longitude=well_data[j].longitude,
-                            date_label=well_data[j].date_label,
-                            timestamp=well_data[j].timestamp,
-                        ))
-                elif gap_len > 0:
-                    for j in range(gap_start, gap_start + gap_len):
-                        filled.append(well_data[j])
-                gap_len = 0
-                filled.append(d)
+    # Identify small gaps
+    gaps = []
+    i = 0
+    while i < len(well_data):
+        if well_data[i].observed is None:
+            start = i
+            while i < len(well_data) and well_data[i].observed is None:
+                i += 1
+            if i - start <= max_gap:
+                gaps.append((start, i - 1))
+        else:
+            i += 1
 
-        # Trailing gap
-        if gap_len > 0:
-            if gap_len <= params.max_gap_threshold:
-                for j in range(gap_start, gap_start + gap_len):
-                    imp = result[j].imputed if j < len(result) else None
-                    filled.append(DataPoint(
-                        time=well_data[j].time, observed=imp,
-                        instance_id=well_data[j].instance_id,
-                        auxiliaries=well_data[j].auxiliaries,
-                        date_label=well_data[j].date_label,
-                        timestamp=well_data[j].timestamp,
-                    ))
-            else:
-                for j in range(gap_start, gap_start + gap_len):
-                    filled.append(well_data[j])
+    if not gaps:
+        return list(well_data)
 
-        return filled
-    except Exception:
-        return well_data
+    pchip = PchipInterpolator(obs_idx, obs_vals)
+    filled = list(well_data)
+    for g_start, g_end in gaps:
+        for t in range(g_start, g_end + 1):
+            val = float(pchip(t))
+            if np.isfinite(val):
+                filled[t] = DataPoint(
+                    time=well_data[t].time,
+                    observed=val,
+                    instance_id=well_data[t].instance_id,
+                    auxiliaries=well_data[t].auxiliaries,
+                    latitude=well_data[t].latitude,
+                    longitude=well_data[t].longitude,
+                    date_label=well_data[t].date_label,
+                    timestamp=well_data[t].timestamp,
+                )
+    return filled
 
 
 def fill_small_gaps_all(
     all_instance_data: Dict[str, List[DataPoint]],
     params: SimulationParams,
 ) -> Dict[str, List[DataPoint]]:
-    """Phase 1: Fill small gaps in ALL wells."""
-    sg_params = SimulationParams(
-        reservoir_size=params.reservoir_size,
-        spectral_radius=params.spectral_radius,
-        leak_rate=params.leak_rate,
-        input_scaling=params.input_scaling,
-        max_gap_threshold=min(params.max_gap_threshold, 20),
-        small_gap_kge_threshold=params.small_gap_kge_threshold,
-        ridge_alpha=params.ridge_alpha,
-        lnn_aux_placeholder_readout=params.lnn_aux_placeholder_readout,
-        small_gap_optimize_trials=3,
-    )
+    """Phase 1: PCHIP small-gap fill for ALL wells.
+    Matches the browser mcLnnPureBrowser.ts Phase 1 pipeline."""
+    max_gap = min(params.max_gap_threshold, 24)
+
+    if PchipInterpolator is None:
+        print("  [MC+LNN Phase 1] WARNING: scipy not available, skipping PCHIP fill", flush=True)
+        return dict(all_instance_data)
 
     filled = {}
     n_total = 0
-    for i, (wid, data) in enumerate(all_instance_data.items()):
+    for wid, data in all_instance_data.items():
         before = sum(1 for d in data if d.observed is not None)
-        filled[wid] = _fill_small_gaps_single(data, sg_params, seed=i)
+        filled[wid] = _pchip_fill_single(data, max_gap=max_gap)
         after = sum(1 for d in filled[wid] if d.observed is not None)
         n_total += (after - before)
 
     n_denser = sum(1 for wid in filled
                    if sum(1 for d in filled[wid] if d.observed is not None) >
                       sum(1 for d in all_instance_data[wid] if d.observed is not None))
-    print(f"  [MC+LNN Phase 1] Small gaps filled: {n_total} points across "
+    print(f"  [MC+LNN Phase 1] PCHIP small gaps filled: {n_total} points across "
           f"{n_denser}/{len(all_instance_data)} wells", flush=True)
     return filled
 
