@@ -1,0 +1,13 @@
+{
+  "n_wells": 592,
+  "n_times": 288,
+  "n_targets": 30,
+  "max_donors": 15,
+  "w_dist": 0.4,
+  "w_precip": 0.4,
+  "w_elev": 0.2,
+  "elapsed_seconds": 449.9066319465637,
+  "enh_kge_mean": -0.5524407801715415,
+  "dist_kge_mean": -0.5119277593471729,
+  "idw_kge_mean": -0.5509951902999415
+}

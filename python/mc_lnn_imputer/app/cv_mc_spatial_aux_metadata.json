@@ -1,0 +1,26 @@
+{
+  "n_wells": 592,
+  "n_times": 288,
+  "n_targets": 30,
+  "grid_resolutions": [
+    0.1,
+    0.2,
+    0.5
+  ],
+  "rank_options": [
+    5,
+    8,
+    10,
+    15,
+    20,
+    30,
+    40
+  ],
+  "aux_rows": [
+    "latitude",
+    "longitude",
+    "elevation"
+  ],
+  "normalization": "per-row z-score",
+  "elapsed_seconds": 92.51824688911438
+}

@@ -1,0 +1,21 @@
+{
+  "n_wells": 592,
+  "n_times": 288,
+  "n_targets": 30,
+  "grid_resolutions": [
+    0.1,
+    0.2,
+    0.5
+  ],
+  "rank_options": [
+    3,
+    5,
+    8,
+    10,
+    15,
+    20
+  ],
+  "idw_exponent": 2.0,
+  "idw_max_neighbors": 15,
+  "elapsed_seconds": 19.232559204101562
+}

@@ -1,0 +1,36 @@
+{
+  "n_wells": 592,
+  "n_times": 288,
+  "n_targets": 30,
+  "grid_resolutions": [
+    0.1,
+    0.2,
+    0.5
+  ],
+  "rank_options": [
+    5,
+    8,
+    10,
+    15,
+    20,
+    30
+  ],
+  "elapsed_seconds": 76.84917688369751,
+  "results_by_resolution": {
+    "0.1": {
+      "amc_kge_mean": -1.0202185616877173,
+      "idw_kge_mean": -1.0038248618477128,
+      "rmc_kge_mean": -1.018858251399039
+    },
+    "0.2": {
+      "amc_kge_mean": -0.5639516169739689,
+      "idw_kge_mean": -0.5269876860332885,
+      "rmc_kge_mean": -0.5652526053966221
+    },
+    "0.5": {
+      "amc_kge_mean": -0.5319264205848512,
+      "idw_kge_mean": -0.5820431158232239,
+      "rmc_kge_mean": -0.4814076792218026
+    }
+  }
+}

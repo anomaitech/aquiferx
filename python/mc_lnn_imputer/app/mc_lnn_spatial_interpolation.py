@@ -222,6 +222,118 @@ def predict_trend(lats, lons, elevs, coeffs, norm_params):
     return X @ coeffs
 
 
+# ─── Step 1c: Clustered Spatial Trend ─────────────────────────────────────────
+
+def fit_clustered_trend(well_lats, well_lons, well_elevs, well_means,
+                        n_clusters=5, degree=2):
+    """Fit separate polynomial trend surfaces per spatial cluster.
+
+    1. K-means on normalized (lat, lon, elev) → k clusters
+    2. Per-cluster polynomial: WTE_mean = f(lat, lon, elev)
+    3. Each well's residual = WTE - own cluster's polynomial (hard assignment)
+
+    Returns: cluster model dict with well labels
+    """
+    from sklearn.cluster import KMeans
+
+    n = len(well_lats)
+
+    # Normalize features for clustering
+    lat_n = (well_lats - np.mean(well_lats)) / max(np.std(well_lats), 1e-10)
+    lon_n = (well_lons - np.mean(well_lons)) / max(np.std(well_lons), 1e-10)
+    elev_n = (well_elevs - np.mean(well_elevs)) / max(np.std(well_elevs), 1e-10)
+    X_cluster = np.column_stack([lat_n, lon_n, elev_n * 0.5])
+
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+    labels = kmeans.fit_predict(X_cluster)
+
+    # Fit polynomial per cluster
+    cluster_models = []
+    for c in range(n_clusters):
+        mask = labels == c
+        n_c = mask.sum()
+        if n_c < 10:
+            mask = np.ones(n, dtype=bool)
+
+        coeffs, norm_params, r2, rmse = fit_spatial_trend(
+            well_lats[mask], well_lons[mask], well_elevs[mask],
+            well_means[mask], degree=degree
+        )
+        cluster_models.append({
+            "coeffs": coeffs,
+            "norm_params": norm_params,
+            "centroid": kmeans.cluster_centers_[c],
+            "r2": r2, "rmse": rmse,
+            "n_wells": int(mask.sum()),
+        })
+
+    norm_info = {
+        "lat_mean": np.mean(well_lats), "lat_std": max(np.std(well_lats), 1e-10),
+        "lon_mean": np.mean(well_lons), "lon_std": max(np.std(well_lons), 1e-10),
+        "elev_mean": np.mean(well_elevs), "elev_std": max(np.std(well_elevs), 1e-10),
+    }
+
+    # Each well's trend = its OWN cluster's polynomial (hard assignment)
+    well_trend = np.zeros(n)
+    for i in range(n):
+        cm = cluster_models[labels[i]]
+        well_trend[i] = predict_trend(
+            np.array([well_lats[i]]), np.array([well_lons[i]]), np.array([well_elevs[i]]),
+            cm["coeffs"], cm["norm_params"]
+        )[0]
+
+    ss_res = np.sum((well_means - well_trend)**2)
+    ss_tot = np.sum((well_means - np.mean(well_means))**2)
+    overall_r2 = 1.0 - ss_res / (ss_tot + 1e-12)
+    overall_rmse = np.sqrt(np.mean((well_means - well_trend)**2))
+
+    return cluster_models, norm_info, n_clusters, overall_r2, overall_rmse, labels
+
+
+def predict_clustered_trend_wells(well_lats, well_lons, well_elevs, cluster_models, labels):
+    """Predict trend for wells using hard cluster assignment (each well uses its own cluster)."""
+    n = len(well_lats)
+    predictions = np.zeros(n)
+    for i in range(n):
+        cm = cluster_models[labels[i]]
+        predictions[i] = predict_trend(
+            np.array([well_lats[i]]), np.array([well_lons[i]]), np.array([well_elevs[i]]),
+            cm["coeffs"], cm["norm_params"]
+        )[0]
+    return predictions
+
+
+def predict_clustered_trend_targets(target_lats, target_lons, target_elevs,
+                                     cluster_models, norm_info):
+    """Predict trend for grid cells using soft blending of nearby cluster models."""
+    n = len(target_lats)
+    lat_n = (target_lats - norm_info["lat_mean"]) / norm_info["lat_std"]
+    lon_n = (target_lons - norm_info["lon_mean"]) / norm_info["lon_std"]
+    elev_n = (target_elevs - norm_info["elev_mean"]) / norm_info["elev_std"] * 0.5
+    points = np.column_stack([lat_n, lon_n, elev_n])
+
+    predictions = np.zeros(n)
+    for i in range(n):
+        dists = np.array([np.linalg.norm(points[i] - cm["centroid"])
+                          for cm in cluster_models])
+        # Soft blend for targets (they might be between clusters)
+        temperature = 0.3
+        weights = np.exp(-dists / temperature)
+        weights /= weights.sum()
+
+        pred = 0.0
+        for c, cm in enumerate(cluster_models):
+            c_pred = predict_trend(
+                np.array([target_lats[i]]), np.array([target_lons[i]]),
+                np.array([target_elevs[i]]),
+                cm["coeffs"], cm["norm_params"]
+            )[0]
+            pred += weights[c] * c_pred
+        predictions[i] = pred
+
+    return predictions
+
+
 # ─── Step 1b: XGBoost Trend Surface ───────────────────────────────────────────
 
 def fit_spatial_trend_xgb(well_lats, well_lons, well_elevs, well_means,
@@ -320,6 +432,91 @@ def interpolate_loadings(target_lat, target_lon, well_lats, well_lons,
     sel, weights = _idw_weights(target_lat, target_lon, well_lats, well_lons,
                                 exponent=2.0, max_neighbors=max_neighbors)
     return well_loadings[:, sel] @ weights
+
+
+def interpolate_loadings_kriging(target_lat, target_lon, well_lats, well_lons,
+                                  well_loadings, krig_LU_cache, max_neighbors=50):
+    """Interpolate EOF spatial loadings via ordinary kriging (nearest-k).
+
+    Kriging advantages over IDW:
+      - Properly downweights clustered wells
+      - Optimal linear unbiased prediction
+      - Uses spatial correlation structure (variogram)
+
+    krig_LU_cache: dict keyed by mode index → (LU, perm, sel, sill, range_, nugget)
+    """
+    n_modes = well_loadings.shape[0]
+    result = np.zeros(n_modes)
+
+    # Select nearest wells
+    dists_all = np.array([_haversine(target_lat, target_lon, well_lats[i], well_lons[i])
+                          for i in range(len(well_lats))])
+    sel = np.argsort(dists_all)[:max_neighbors]
+    kl, kn = well_lats[sel], well_lons[sel]
+    n = len(sel)
+
+    for m in range(n_modes):
+        kv = well_loadings[m, sel]
+
+        # Get or compute variogram + LU for this mode's loading field
+        if m not in krig_LU_cache:
+            # Estimate variogram from ALL wells for this mode
+            all_vals = well_loadings[m, :]
+            variance = np.var(all_vals)
+            diag = _haversine(well_lats.min(), well_lons.min(),
+                              well_lats.max(), well_lons.max())
+            sill = max(variance, 1e-10)
+            range_ = max(diag / 3.0, 100)
+            nugget = max(variance * 0.05, 1e-12)
+
+            # Build kriging matrix for selected wells
+            K = np.zeros((n + 1, n + 1))
+            for i in range(n):
+                K[i, i] = sill
+                for j in range(i + 1, n):
+                    d = _haversine(kl[i], kn[i], kl[j], kn[j])
+                    sv = sill - nugget
+                    c = sv * np.exp(-(d / range_)**2)  # Gaussian covariance
+                    K[i, j] = c
+                    K[j, i] = c
+                K[i, n] = 1.0
+                K[n, i] = 1.0
+            K[n, n] = 0.0
+
+            # LU decompose once per mode
+            try:
+                from scipy.linalg import lu_factor, lu_solve
+                LU_piv = lu_factor(K)
+                krig_LU_cache[m] = (LU_piv, sel, sill, range_, nugget, "scipy")
+            except ImportError:
+                # Fallback: store matrix for np.linalg.solve
+                krig_LU_cache[m] = (K, sel, sill, range_, nugget, "numpy")
+
+        cached = krig_LU_cache[m]
+        sill, range_, nugget = cached[2], cached[3], cached[4]
+
+        # Build RHS: covariance from target to each selected well
+        rhs = np.zeros(n + 1)
+        for i in range(n):
+            d = dists_all[sel[i]]
+            sv = sill - nugget
+            rhs[i] = sv * np.exp(-(d / range_)**2)
+        rhs[n] = 1.0
+
+        # Solve
+        try:
+            if cached[5] == "scipy":
+                from scipy.linalg import lu_solve
+                weights = lu_solve(cached[0], rhs)
+            else:
+                weights = np.linalg.solve(cached[0], rhs)
+            val = float(np.sum(weights[:n] * kv))
+            result[m] = val if np.isfinite(val) else float(np.sum(kv) / n)
+        except Exception:
+            # Fallback to mean
+            result[m] = float(np.mean(kv))
+
+    return result
 
 
 # ─── Step 4b: Graph Laplacian Interpolation ───────────────────────────────────
@@ -562,7 +759,8 @@ def mc_lnn_eof_interpolation(
     n_modes: int = 10,
     max_neighbors: int = 30,
     trend_degree: int = 2,
-    trend_method: str = "poly",    # "poly" or "xgb"
+    trend_method: str = "poly",    # "poly", "xgb", or "clustered"
+    n_trend_clusters: int = 5,
     use_lnn: bool = False,
     lnn_max_targets: int = 500,
     interpolation_method: str = "idw",  # "idw" or "graph"
@@ -584,7 +782,20 @@ def mc_lnn_eof_interpolation(
     # Step 1: Fit spatial trend
     well_means = np.mean(well_matrix, axis=0)
 
-    if trend_method == "xgb" and HAS_XGB:
+    if trend_method == "clustered":
+        cluster_models, norm_info, n_cl, trend_r2, trend_rmse, labels = fit_clustered_trend(
+            well_lats, well_lons, well_elevs, well_means,
+            n_clusters=n_trend_clusters, degree=trend_degree,
+        )
+        # Wells: hard assignment (each well uses its own cluster's polynomial)
+        well_trend = predict_clustered_trend_wells(
+            well_lats, well_lons, well_elevs, cluster_models, labels
+        )
+        # Targets: soft blend (grid cells may be between clusters)
+        target_trends = predict_clustered_trend_targets(
+            target_lats, target_lons, target_elevs, cluster_models, norm_info
+        )
+    elif trend_method == "xgb" and HAS_XGB:
         xgb_model, trend_r2, trend_rmse = fit_spatial_trend_xgb(
             well_lats, well_lons, well_elevs, well_means,
             exclude_idx=exclude_well_idx,
@@ -611,7 +822,18 @@ def mc_lnn_eof_interpolation(
     var_explained = np.cumsum(S**2) / total_var
 
     # Step 4: Interpolate loadings to targets
-    if interpolation_method == "graph" and n_targets <= 5000:
+    if interpolation_method == "kriging":
+        # Kriging: per-target, with LU cache for speed
+        predictions = np.zeros((n_times, n_targets))
+        krig_cache = {}
+        for g in range(n_targets):
+            target_loadings = interpolate_loadings_kriging(
+                target_lats[g], target_lons[g],
+                well_lats, well_lons, Vt, krig_cache, max_neighbors=max_neighbors,
+            )
+            target_residual = U @ (S * target_loadings)
+            predictions[:, g] = target_trends[g] + target_residual
+    elif interpolation_method == "graph" and n_targets <= 5000:
         target_loadings_all = graph_laplacian_interpolate(
             well_lats, well_lons, well_elevs,
             target_lats, target_lons, target_elevs,
@@ -794,7 +1016,7 @@ def eof_interpolation_cv(well_lats, well_lons, well_elevs, well_matrix,
                          target_indices, n_modes=10, max_neighbors=30,
                          use_lnn=False, interpolation_method="idw",
                          graph_bandwidth_km=50.0, graph_elev_weight=0.3,
-                         trend_method="poly"):
+                         trend_method="poly", n_trend_clusters=5):
     """Leave-one-out CV using EOF interpolation, optionally with LNN refinement."""
     n_times, n_wells = well_matrix.shape
 
@@ -826,7 +1048,8 @@ def eof_interpolation_cv(well_lats, well_lons, well_elevs, well_matrix,
             graph_bandwidth_km=graph_bandwidth_km,
             graph_elev_weight=graph_elev_weight,
             trend_method=trend_method,
-            exclude_well_idx=None,  # already excluded via ow_* arrays
+            n_trend_clusters=n_trend_clusters,
+            exclude_well_idx=None,
         )
         eof_pred = pred[:, 0]
 
@@ -942,8 +1165,57 @@ if __name__ == "__main__":
     print(f"Targets: {len(target_indices)}")
     print()
 
-    # Test Polynomial vs XGBoost trend
-    print("--- Polynomial vs XGBoost Trend (IDW loading interp, 20 modes) ---")
+    # Test IDW vs Kriging for loading interpolation
+    print("--- IDW vs Kriging Loading Interpolation (Poly trend, 20 modes) ---")
+    for method in ["idw", "kriging"]:
+        t0 = _time.time()
+        results = eof_interpolation_cv(well_lats, well_lons, well_elevs, well_matrix,
+                                        target_indices, n_modes=20, max_neighbors=30,
+                                        interpolation_method=method)
+        elapsed = _time.time() - t0
+        eof_kges = [r["eof_kge"] for r in results]
+        eof_rmses = [r["eof_rmse"] for r in results]
+        idw_kges = [r["idw_kge"] for r in results]
+        eof_wins = sum(1 for e, i in zip(eof_kges, idw_kges) if e > i)
+        label = f"{'Kriging':>7}" if method == "kriging" else f"{'IDW':>7}"
+        print(f"  {label}: KGE med={np.median(eof_kges):.4f} mean={np.mean(eof_kges):.4f} "
+              f"RMSE={np.mean(eof_rmses):.2f} | >plainIDW: {eof_wins}/30 | {elapsed:.1f}s")
+
+    # Kriging at different mode counts
+    print()
+    print("--- Kriging Loading Interp at different mode counts ---")
+    for n_modes in [5, 10, 20, 50]:
+        t0 = _time.time()
+        results = eof_interpolation_cv(well_lats, well_lons, well_elevs, well_matrix,
+                                        target_indices, n_modes=n_modes, max_neighbors=30,
+                                        interpolation_method="kriging")
+        elapsed = _time.time() - t0
+        eof_kges = [r["eof_kge"] for r in results]
+        eof_rmses = [r["eof_rmse"] for r in results]
+        print(f"  {n_modes:>2} modes: KGE med={np.median(eof_kges):.4f} "
+              f"RMSE={np.mean(eof_rmses):.2f} | {elapsed:.1f}s")
+
+    # Test clustered trend with different cluster counts
+    print()
+    print("--- Clustered Trend (IDW loadings, 20 modes) ---")
+    for n_cl in [3, 5, 7, 10]:
+        t0 = _time.time()
+        results = eof_interpolation_cv(well_lats, well_lons, well_elevs, well_matrix,
+                                        target_indices, n_modes=20, max_neighbors=30,
+                                        trend_method="clustered", n_trend_clusters=n_cl)
+        elapsed = _time.time() - t0
+        eof_kges = [r["eof_kge"] for r in results]
+        eof_rmses = [r["eof_rmse"] for r in results]
+        idw_kges = [r["idw_kge"] for r in results]
+        eof_wins = sum(1 for e, i in zip(eof_kges, idw_kges) if e > i)
+        trend_r2 = results[0]["trend_r2"]
+        print(f"  {n_cl:>2} clusters: KGE med={np.median(eof_kges):.4f} mean={np.mean(eof_kges):.4f} "
+              f"RMSE={np.mean(eof_rmses):.2f} | trend_R²={trend_r2:.4f} | "
+              f">IDW: {eof_wins}/30 | {elapsed:.1f}s")
+
+    # Compare all trend methods
+    print()
+    print("--- All Trend Methods (IDW loadings, 20 modes) ---")
     for trend in ["poly", "xgb"]:
         t0 = _time.time()
         results = eof_interpolation_cv(well_lats, well_lons, well_elevs, well_matrix,
