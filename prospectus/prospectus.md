@@ -30,7 +30,7 @@ The Great Salt Lake Basin (GSLB) serves as the initial validation site, chosen f
 
 The utility of in situ groundwater-level records depends critically on temporal completeness. In practice, wells are installed, monitored intermittently, and often abandoned, producing records with gaps ranging from months to years. A progression of imputation methods has been developed to address this challenge.
 
-Evans et al. (2020a) introduced the Groundwater Level Mapping Tool (GWLMT), coupling Extreme Learning Machines (ELM; Huang et al., 2006) with satellite-derived auxiliary variables from GRACE and GLDAS. Evans et al. (2020b) demonstrated that ELM with Earth observation inputs substantially outperforms conventional interpolation. Ramirez et al. (2022) incorporated inductive bias from remote sensing, and Ramirez et al. (2023) added iterative refinement using both spatial correlations from neighboring wells and temporal correlations from auxiliary variables. This line of work has been applied to basin-scale storage assessment in California's Central Valley (Stevens et al., 2025) and the Klamath watershed (Shepard et al., 2025).
+Evans et al. (2020a) introduced the Groundwater Data Mapper (GWDM), coupling Extreme Learning Machines (ELM; Huang et al., 2006) with satellite-derived auxiliary variables from GRACE and GLDAS. Evans et al. (2020b) demonstrated that ELM with Earth observation inputs substantially outperforms conventional interpolation. Ramirez et al. (2022) incorporated inductive bias from remote sensing, and Ramirez et al. (2023) added iterative refinement using both spatial correlations from neighboring wells and temporal correlations from auxiliary variables. This line of work has been applied to basin-scale storage assessment in California's Central Valley (Stevens et al., 2025) and the Klamath watershed (Shepard et al., 2025).
 
 Deep learning approaches have also been explored. Jeong et al. (2020) demonstrated that recurrent neural networks can reconstruct missing groundwater levels with high accuracy but degrade sharply beyond one- to two-year gaps. Wunsch et al. (2021) compared LSTM, CNN, and NARX architectures, finding that multivariate models consistently outperform univariate ones. Gharehbaghi et al. (2022) and Lin et al. (2022) showed GRU networks perform comparably to LSTM.
 
@@ -76,7 +76,7 @@ The GSLB's basin-scale groundwater contribution has been characterized only at s
 
 ### 2.3 Methods
 
-Five GWSa estimates were computed: (1) GRACE-raw (TWSa minus GLDAS stores); (2) GRACE-sw (surface-water adjusted); (3) GRACE-Lf (leakage-corrected, Lf=2 calibrated against in situ data); (4) GLDAS-2.2 (GRACE-assimilated CLSM); and (5) GWDM (in situ via the GWLMT workflow of Evans et al., 2020a, using PCHIP, ELM, and kriging with specific yield 0.15).
+Five GWSa estimates were computed: (1) GRACE-raw (TWSa minus GLDAS stores); (2) GRACE-sw (surface-water adjusted); (3) GRACE-Lf (leakage-corrected, Lf=2 calibrated against in situ data); (4) GLDAS-2.2 (GRACE-assimilated CLSM); and (5) GWDM (in situ via the GWDM workflow of Evans et al., 2020a, using PCHIP, ELM, and kriging with specific yield 0.15).
 
 ### 2.4 Results
 
@@ -172,7 +172,7 @@ Croteau, M. J., Nerem, R. S., Loomis, B. D., & Mitrovica, J. X. (2021). GRACE Fa
 
 Evans, S., Williams, G. P., Jones, N. L., Ames, D. P., & Nelson, E. J. (2020a). Exploiting Earth Observation Data to Impute Groundwater Level Measurements with an Extreme Learning Machine. Remote Sensing, 12, 2044. https://doi.org/10.3390/rs12122044
 
-Evans, S. W., Jones, N. L., Williams, G. P., Ames, D. P., & Nelson, E. J. (2020b). Groundwater Level Mapping Tool: An open source web application for assessing groundwater sustainability. Environmental Modelling & Software, 131, 104782. https://doi.org/10.1016/j.envsoft.2020.104782
+Evans, S. W., Jones, N. L., Williams, G. P., Ames, D. P., & Nelson, E. J. (2020b). Groundwater Data Mapper: An open source web application for assessing groundwater sustainability. Environmental Modelling & Software, 131, 104782. https://doi.org/10.1016/j.envsoft.2020.104782
 
 Gharehbaghi, A., Ghasemlounia, R., Ahmadi, F., & Albaji, M. (2022). Groundwater level prediction with meteorologically sensitive Gated Recurrent Unit (GRU) neural networks. Journal of Hydrology, 612, 128262.
 
