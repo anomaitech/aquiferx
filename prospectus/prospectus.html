@@ -302,10 +302,14 @@ surprisingly small number of observed entries under incoherence
 conditions. Poudevigne and Jones (2024) developed a Hankel Imputation
 method using block-Hankel matrix completion that performs competitively
 for time-series interpolation and excels at reproducing sharp peaks that
-classical methods miss. Prior studies have evaluated multiple imputation
-strategies for monthly groundwater levels and found that Soft Imputation
-(a matrix-completion variant) excels in sparse networks, precisely the
-setting where deep learning methods struggle most.</p>
+classical methods miss. Matrix completion has seen minimal application
+to groundwater data. Sharma, Kim, and Tayerani Charmchi (2024) evaluated
+SoftImpute alongside four other methods for monthly groundwater levels
+in the Chao-Phraya River Basin, finding that Soft Imputation excels in
+sparse networks with Pearson R above 0.80, precisely the setting where
+deep learning methods struggle most. However, their study treats matrix
+completion as one of several standalone methods, without coupling it to
+temporal models or auxiliary forcings.</p>
 <p>Recent advances in continuous-time neural network architectures offer
 particular promise for irregularly sampled hydrological data. Hasani et
 al. (2021) introduced Liquid Time-Constant Networks (LTCs), in which
@@ -325,18 +329,28 @@ imputation frameworks that jointly exploit both spatial structure
 nonlinear evolution) within a single integrated pipeline. The ELM-based
 approaches of Evans et al. (2020a) and Ramirez et al. (2023) incorporate
 temporal auxiliary features but treat spatial context only through
-basin-scale remote sensing products. Matrix completion methods exploit
-spatial correlation but do not model temporal dynamics or incorporate
-auxiliary forcings. Deep learning approaches (LSTM, GRU) model temporal
-dynamics but treat wells independently. This dissertation proposes a
-coupled Matrix Completion + Liquid Neural Network (MC+LNN) framework
-that explicitly addresses this gap: matrix completion provides spatially
-informed initial estimates by exploiting the correlation structure
-across the full well network, while the LNN refines those estimates
-using continuous-time dynamics conditioned on auxiliary climatic
-forcings. The two components are complementary — MC handles the spatial
-dimension, LNN handles the temporal dimension — and their coupling
-produces imputation quality that neither achieves alone.</p>
+basin-scale remote sensing products. The sole published application of
+matrix completion to groundwater (Sharma et al., 2024) uses SoftImpute
+as a standalone method without coupling it to temporal models or
+auxiliary data. Deep learning approaches (LSTM, GRU) model temporal
+dynamics but treat wells independently. No prior work has combined
+matrix completion with continuous-time neural networks for groundwater
+imputation.</p>
+<p>This dissertation proposes a coupled Matrix Completion + Liquid
+Neural Network (MC+LNN) framework that explicitly addresses this gap:
+matrix completion provides spatially informed initial estimates by
+exploiting the correlation structure across the full well network —
+constructing a composite matrix of the target well, correlated donor
+wells, GLDAS auxiliary variables, and seasonal encoding — while the LNN
+refines those estimates using closed-form continuous-time dynamics
+(Hasani et al., 2022) conditioned on auxiliary climatic forcings. The MC
+predictions serve as reservoir input (placeholders) for the LNN during
+gap periods, but the LNN readout is trained exclusively on real
+observations, ensuring the temporal model learns from ground truth while
+benefiting from MC’s spatial context. The two components are
+complementary — MC handles the spatial dimension, LNN handles the
+temporal dimension — and their coupling produces imputation quality that
+neither achieves alone.</p>
 <p>Hybrid approaches that combine multiple information sources are
 increasingly recognized as superior to single-method frameworks. Rojas
 et al. (2025) comprehensively evaluated classical, ensemble, and deep
@@ -836,6 +850,10 @@ Environment, 4, 87-101.</p>
 learning framework with Bayesian data imputation for modelling and
 forecasting groundwater levels. Environmental Modelling &amp; Software,
 178, 106072.</p>
+<p>Sharma, S., Kim, T., &amp; Tayerani Charmchi, A. S. (2024). Strategic
+imputation of groundwater data using machine learning: Insights from
+diverse aquifers in the Chao-Phraya River Basin. Groundwater for
+Sustainable Development, 27, 101300.</p>
 <p>Shepard, D., Jones, N. L., &amp; Williams, G. P. (2025). Application
 of the Groundwater Data Mapper Tool to Assess Storage Changes in a
 Groundwater-Driven Basin in the Klamath Watershed, Oregon, USA.
