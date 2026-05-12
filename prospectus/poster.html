@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MC+LNN Groundwater Imputation Poster</title>
+<style>
+  @page { size: 36in 24in; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 36in;
+    height: 24in;
+    font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    background: #f8fafc;
+    color: #1e293b;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0e7490 100%);
+    color: white;
+    padding: 0.5in 0.6in 0.45in;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 6px;
+    background: linear-gradient(90deg, #06b6d4, #22d3ee, #67e8f9, #22d3ee, #06b6d4);
+  }
+  .header-left { flex: 1; }
+  .header-left h1 {
+    font-size: 0.52in;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .header-left .subtitle {
+    font-size: 0.2in;
+    font-weight: 300;
+    margin-top: 0.08in;
+    color: #94a3b8;
+    letter-spacing: 0.02em;
+  }
+  .header-right {
+    text-align: right;
+    font-size: 0.17in;
+    line-height: 1.6;
+    color: #cbd5e1;
+    min-width: 4.5in;
+  }
+  .header-right .author {
+    font-size: 0.22in;
+    font-weight: 600;
+    color: #e2e8f0;
+  }
+
+  /* Main content grid */
+  .content {
+    display: grid;
+    grid-template-columns: 1fr 1.3fr 1fr;
+    grid-template-rows: auto;
+    gap: 0.22in;
+    padding: 0.3in 0.5in 0.35in;
+    height: calc(24in - 2.0in);
+  }
+
+  /* Cards */
+  .card {
+    background: white;
+    border-radius: 0.12in;
+    padding: 0.28in 0.3in;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+    border: 1px solid #e2e8f0;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+  }
+  .card.blue::before { background: linear-gradient(90deg, #0284c7, #06b6d4); }
+  .card.teal::before { background: linear-gradient(90deg, #0d9488, #14b8a6); }
+  .card.amber::before { background: linear-gradient(90deg, #d97706, #f59e0b); }
+  .card.emerald::before { background: linear-gradient(90deg, #059669, #10b981); }
+  .card.purple::before { background: linear-gradient(90deg, #7c3aed, #a78bfa); }
+  .card.rose::before { background: linear-gradient(90deg, #e11d48, #fb7185); }
+
+  .card h2 {
+    font-size: 0.22in;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 0.12in;
+    display: flex;
+    align-items: center;
+    gap: 0.1in;
+  }
+  .card h2 .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 0.32in;
+    height: 0.32in;
+    border-radius: 50%;
+    font-size: 0.16in;
+    font-weight: 800;
+    color: white;
+    flex-shrink: 0;
+  }
+  .blue .num { background: #0284c7; }
+  .teal .num { background: #0d9488; }
+  .amber .num { background: #d97706; }
+  .emerald .num { background: #059669; }
+  .purple .num { background: #7c3aed; }
+  .rose .num { background: #e11d48; }
+
+  .card p, .card li {
+    font-size: 0.155in;
+    line-height: 1.55;
+    color: #334155;
+  }
+  .card ul { padding-left: 0.25in; }
+  .card li { margin-bottom: 0.04in; }
+
+  /* Pipeline diagram */
+  .pipeline {
+    display: flex;
+    align-items: stretch;
+    gap: 0.1in;
+    margin: 0.15in 0;
+  }
+  .pipe-step {
+    flex: 1;
+    background: #f0f9ff;
+    border: 2px solid #bae6fd;
+    border-radius: 0.08in;
+    padding: 0.12in;
+    text-align: center;
+    position: relative;
+  }
+  .pipe-step.active {
+    background: #ecfdf5;
+    border-color: #6ee7b7;
+  }
+  .pipe-step h4 {
+    font-size: 0.14in;
+    font-weight: 700;
+    color: #0e7490;
+    margin-bottom: 0.04in;
+  }
+  .pipe-step.active h4 { color: #059669; }
+  .pipe-step p {
+    font-size: 0.11in !important;
+    color: #64748b !important;
+    line-height: 1.4 !important;
+  }
+  .arrow {
+    display: flex;
+    align-items: center;
+    font-size: 0.2in;
+    color: #94a3b8;
+    font-weight: bold;
+  }
+
+  /* Results table */
+  .results-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.1in 0;
+    font-size: 0.14in;
+  }
+  .results-table th {
+    background: #f1f5f9;
+    padding: 0.06in 0.1in;
+    text-align: left;
+    font-weight: 700;
+    font-size: 0.125in;
+    color: #475569;
+    border-bottom: 2px solid #cbd5e1;
+  }
+  .results-table td {
+    padding: 0.06in 0.1in;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 0.135in;
+  }
+  .results-table tr.highlight td {
+    background: #ecfdf5;
+    font-weight: 600;
+  }
+
+  /* KGE bar */
+  .kge-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.08in;
+    margin: 0.06in 0;
+  }
+  .kge-bar .label {
+    font-size: 0.12in;
+    font-weight: 600;
+    width: 0.6in;
+    text-align: right;
+    color: #475569;
+  }
+  .kge-bar .bar-track {
+    flex: 1;
+    height: 0.22in;
+    background: #f1f5f9;
+    border-radius: 0.11in;
+    overflow: hidden;
+    position: relative;
+  }
+  .kge-bar .bar-fill {
+    height: 100%;
+    border-radius: 0.11in;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 0.08in;
+    font-size: 0.11in;
+    font-weight: 700;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  }
+
+  /* Equation */
+  .equation {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.06in;
+    padding: 0.1in 0.15in;
+    font-family: 'Cambria Math', 'Times New Roman', serif;
+    font-size: 0.14in;
+    text-align: center;
+    margin: 0.08in 0;
+    color: #1e293b;
+  }
+
+  /* Highlight stat */
+  .stat-row {
+    display: flex;
+    gap: 0.15in;
+    margin: 0.12in 0;
+  }
+  .stat-box {
+    flex: 1;
+    text-align: center;
+    padding: 0.12in 0.08in;
+    border-radius: 0.08in;
+  }
+  .stat-box.blue-bg { background: #eff6ff; border: 1px solid #bfdbfe; }
+  .stat-box.green-bg { background: #ecfdf5; border: 1px solid #a7f3d0; }
+  .stat-box.amber-bg { background: #fffbeb; border: 1px solid #fde68a; }
+  .stat-box .stat-val {
+    font-size: 0.32in;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .stat-box.blue-bg .stat-val { color: #1d4ed8; }
+  .stat-box.green-bg .stat-val { color: #059669; }
+  .stat-box.amber-bg .stat-val { color: #d97706; }
+  .stat-box .stat-label {
+    font-size: 0.105in;
+    color: #64748b;
+    margin-top: 0.04in;
+    font-weight: 500;
+  }
+
+  /* Column spans */
+  .col-span-center { grid-column: 2; }
+
+  /* Small text */
+  .small { font-size: 0.12in !important; color: #64748b !important; }
+  .bold { font-weight: 700; }
+  .accent { color: #0284c7; }
+  .accent-green { color: #059669; }
+
+  /* Footer */
+  .footer {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: #0f172a;
+    color: #94a3b8;
+    padding: 0.12in 0.6in;
+    font-size: 0.11in;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .footer a { color: #67e8f9; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <h1>A Hybrid Matrix Completion + Liquid Neural Network<br>Framework for Groundwater Level Imputation</h1>
+    <div class="subtitle">Coupling Spatial Correlation Structure with Continuous-Time Temporal Dynamics for Long-Gap Reconstruction</div>
+  </div>
+  <div class="header-right">
+    <div class="author">Henok Teklu</div>
+    Department of Civil and Construction Engineering<br>
+    Brigham Young University<br>
+    Advisor: Dr. Norm Jones
+  </div>
+</div>
+
+<!-- CONTENT -->
+<div class="content">
+
+  <!-- COLUMN 1 -->
+
+  <!-- Motivation -->
+  <div class="card blue" style="grid-row: 1;">
+    <h2><span class="num">1</span> The Problem</h2>
+    <p>Public groundwater monitoring networks (e.g., USGS NWIS) contain <span class="bold">millions of measurements</span> but are plagued by <span class="bold accent">long temporal gaps</span> spanning months to years. These gaps prevent basin-scale storage estimation critical for drought response and water policy.</p>
+    <div class="stat-row">
+      <div class="stat-box blue-bg">
+        <div class="stat-val">592</div>
+        <div class="stat-label">GSLB Wells</div>
+      </div>
+      <div class="stat-box amber-bg">
+        <div class="stat-val">70%</div>
+        <div class="stat-label">Best Coverage</div>
+      </div>
+      <div class="stat-box green-bg">
+        <div class="stat-val">288</div>
+        <div class="stat-label">Months (2000-2023)</div>
+      </div>
+    </div>
+    <p class="small">Prior methods (ELM, LSTM, GRU) treat each well independently. Matrix completion has been applied only once to groundwater (Sharma et al., 2024) as a standalone method. No prior work couples spatial MC with temporal neural dynamics.</p>
+  </div>
+
+  <!-- Pipeline -->
+  <div class="card teal" style="grid-row: 1;">
+    <h2><span class="num">2</span> MC+LNN Pipeline</h2>
+    <div class="pipeline">
+      <div class="pipe-step">
+        <h4>Stage 1: PCHIP</h4>
+        <p>Fill gaps &le; 24 months<br>Shape-preserving<br>polynomial interpolation</p>
+      </div>
+      <div class="arrow">&rarr;</div>
+      <div class="pipe-step">
+        <h4>Stage 2a: ARCHI</h4>
+        <p>Top-15 correlated donor<br>wells via OLS regression<br>Trend-aware initialization</p>
+      </div>
+      <div class="arrow">&rarr;</div>
+      <div class="pipe-step active">
+        <h4>Stage 2b: MC</h4>
+        <p>SoftImpute SVD on<br>composite matrix:<br>donors + GLDAS + sin/cos</p>
+      </div>
+      <div class="arrow">&rarr;</div>
+      <div class="pipe-step active">
+        <h4>Stage 2c: LNN</h4>
+        <p>CFC reservoir dynamics<br>MC as input placeholder<br>Trained on observations only</p>
+      </div>
+    </div>
+    <p style="font-size:0.13in; margin-top:0.08in;"><span class="bold accent-green">Key insight:</span> MC provides <span class="bold">spatial context</span> (cross-well correlations), LNN provides <span class="bold">temporal dynamics</span> (nonlinear continuous-time evolution). MC predictions drive the LNN reservoir, but readout trains only on real observations.</p>
+    <div class="equation">
+      <strong>LNN CFC:</strong>&nbsp;&nbsp; x(t+dt) = x &middot; e<sup>-leak&middot;dt</sup> + (b / leak) &middot; (1 - e<sup>-leak&middot;dt</sup>)&nbsp;&nbsp;&nbsp; where b = tanh(W<sub>in</sub> &middot; input + W<sub>res</sub> &middot; x)
+    </div>
+  </div>
+
+  <!-- Novelty -->
+  <div class="card purple" style="grid-row: 1;">
+    <h2><span class="num">3</span> What's New</h2>
+    <p class="bold" style="margin-bottom:0.08in;">First framework to jointly exploit:</p>
+    <table style="width:100%; font-size:0.14in; border-collapse:collapse;">
+      <tr>
+        <td style="padding:0.06in; vertical-align:top; width:50%; border-right:1px solid #e2e8f0;">
+          <span class="bold accent">Spatial Structure</span><br>
+          <span class="small">Matrix Completion exploits correlation across the full 592-well network via low-rank SVD with GLDAS auxiliary rows and seasonal encoding</span>
+        </td>
+        <td style="padding:0.06in; vertical-align:top;">
+          <span class="bold accent-green">Temporal Dynamics</span><br>
+          <span class="small">Liquid Neural Network with closed-form continuous-time cells (Hasani et al., 2022) captures nonlinear drought response, recharge lags, and seasonal patterns</span>
+        </td>
+      </tr>
+    </table>
+    <p style="margin-top:0.12in;"><span class="bold">vs. Prior approaches:</span></p>
+    <ul>
+      <li><span class="bold">ELM</span> (Evans et al., 2020): Temporal only, no cross-well structure</li>
+      <li><span class="bold">LSTM/GRU</span> (Jeong et al., 2020; Wunsch et al., 2021): Each well independent</li>
+      <li><span class="bold">SoftImpute</span> (Sharma et al., 2024): Spatial only, no temporal model</li>
+      <li><span class="bold">MC+LNN (ours)</span>: Spatial + Temporal, coupled</li>
+    </ul>
+  </div>
+
+  <!-- COLUMN 2 (center, results) -->
+
+  <!-- Cross-validation results -->
+  <div class="card emerald" style="grid-row: 2; grid-column: 1 / 3;">
+    <h2><span class="num">4</span> Cross-Validation Results (592 wells, Great Salt Lake Basin)</h2>
+    <div style="display:flex; gap:0.3in;">
+
+      <div style="flex:1;">
+        <p class="bold" style="margin-bottom:0.08in; font-size:0.16in;">A. Random Missing Data (50 trials each)</p>
+        <table class="results-table">
+          <tr><th>% Removed</th><th>KGE</th><th>R&sup2;</th><th>RMSE (ft)</th><th>MAE (ft)</th></tr>
+          <tr><td>5%</td><td>0.837 &plusmn; 0.085</td><td>0.771</td><td>2.53</td><td>1.98</td></tr>
+          <tr><td>10%</td><td>0.843 &plusmn; 0.077</td><td>0.770</td><td>2.70</td><td>2.06</td></tr>
+          <tr><td>20%</td><td>0.853 &plusmn; 0.051</td><td>0.787</td><td>2.64</td><td>1.98</td></tr>
+          <tr><td>30%</td><td>0.844 &plusmn; 0.048</td><td>0.770</td><td>2.79</td><td>2.03</td></tr>
+          <tr><td>40%</td><td>0.851 &plusmn; 0.030</td><td>0.784</td><td>2.75</td><td>2.03</td></tr>
+          <tr class="highlight"><td>50%</td><td>0.847 &plusmn; 0.035</td><td>0.788</td><td>2.74</td><td>2.03</td></tr>
+        </table>
+        <p class="small" style="margin-top:0.06in;">KGE remains &gt;0.84 even when 50% of data is removed.</p>
+      </div>
+
+      <div style="flex:1;">
+        <p class="bold" style="margin-bottom:0.08in; font-size:0.16in;">B. Consecutive Year Gaps (20 trials each)</p>
+        <table class="results-table">
+          <tr><th>Gap Size</th><th>KGE</th><th>R&sup2;</th><th>RMSE (ft)</th><th>MAE (ft)</th></tr>
+          <tr><td>1 year</td><td>0.783 &plusmn; 0.116</td><td>0.703</td><td>2.98</td><td>2.28</td></tr>
+          <tr><td>2 years</td><td>0.792 &plusmn; 0.081</td><td>0.721</td><td>2.97</td><td>2.29</td></tr>
+          <tr><td>3 years</td><td>0.802 &plusmn; 0.076</td><td>0.730</td><td>3.02</td><td>2.33</td></tr>
+          <tr><td>4 years</td><td>0.806 &plusmn; 0.055</td><td>0.738</td><td>2.96</td><td>2.15</td></tr>
+          <tr class="highlight"><td>5 years</td><td>0.815 &plusmn; 0.063</td><td>0.744</td><td>2.91</td><td>2.20</td></tr>
+        </table>
+        <p class="small" style="margin-top:0.06in;">KGE &gt;0.78 even for 5-year consecutive gaps.</p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Comparison bars -->
+  <div class="card rose" style="grid-row: 2; grid-column: 3;">
+    <h2><span class="num">5</span> PCHIP Matters</h2>
+    <p style="margin-bottom:0.1in;">Replacing LNN-based small-gap fill with PCHIP in Stage 1 improves performance across the board:</p>
+
+    <p class="bold small" style="margin-bottom:0.04in;">Random Missing (avg KGE)</p>
+    <div class="kge-bar">
+      <div class="label">LNN</div>
+      <div class="bar-track"><div class="bar-fill" style="width:76.9%; background:linear-gradient(90deg,#f97316,#fb923c);">0.769</div></div>
+    </div>
+    <div class="kge-bar">
+      <div class="label">PCHIP</div>
+      <div class="bar-track"><div class="bar-fill" style="width:84.5%; background:linear-gradient(90deg,#059669,#34d399);">0.845</div></div>
+    </div>
+
+    <p class="bold small" style="margin-top:0.12in; margin-bottom:0.04in;">Consecutive Gaps (avg KGE)</p>
+    <div class="kge-bar">
+      <div class="label">LNN</div>
+      <div class="bar-track"><div class="bar-fill" style="width:67.3%; background:linear-gradient(90deg,#f97316,#fb923c);">0.673</div></div>
+    </div>
+    <div class="kge-bar">
+      <div class="label">PCHIP</div>
+      <div class="bar-track"><div class="bar-fill" style="width:80.0%; background:linear-gradient(90deg,#059669,#34d399);">0.800</div></div>
+    </div>
+
+    <div class="stat-row" style="margin-top:0.15in;">
+      <div class="stat-box green-bg">
+        <div class="stat-val" style="font-size:0.24in;">+10%</div>
+        <div class="stat-label">Random KGE</div>
+      </div>
+      <div class="stat-box green-bg">
+        <div class="stat-val" style="font-size:0.24in;">+19%</div>
+        <div class="stat-label">Consec. KGE</div>
+      </div>
+    </div>
+    <p class="small" style="margin-top:0.06in;">PCHIP densification improves donor correlations for the MC stage, cascading through the pipeline.</p>
+  </div>
+
+  <!-- MC alone vs MC+LNN -->
+  <div class="card amber" style="grid-row: 3; grid-column: 1;">
+    <h2><span class="num">6</span> Each Stage Adds Value</h2>
+    <p style="margin-bottom:0.08in;">Ablation study isolating each component:</p>
+    <table class="results-table">
+      <tr><th>Method</th><th>KGE (random)</th><th>KGE (consec.)</th></tr>
+      <tr><td>MC alone</td><td>0.24</td><td>-0.07</td></tr>
+      <tr><td>LNN alone</td><td>0.65</td><td>0.45</td></tr>
+      <tr class="highlight"><td><strong>MC + LNN</strong></td><td><strong>0.85</strong></td><td><strong>0.80</strong></td></tr>
+    </table>
+    <p style="margin-top:0.1in; font-size:0.13in;">MC provides spatial placeholders. LNN refines them with temporal dynamics. <span class="bold">Neither alone achieves what the coupled framework delivers.</span></p>
+  </div>
+
+  <!-- Study area -->
+  <div class="card blue" style="grid-row: 3; grid-column: 2;">
+    <h2><span class="num">7</span> Study Area: Great Salt Lake Basin</h2>
+    <div style="display:flex; gap:0.2in; align-items:flex-start;">
+      <div style="flex:1;">
+        <ul>
+          <li><span class="bold">93,000 km&sup2;</span> closed hydrologic system, 4 states</li>
+          <li><span class="bold">592 eligible wells</span> with &ge;10 observations (2000-2023)</li>
+          <li>Concentrated pumping along the <span class="bold">Wasatch Front</span></li>
+          <li>WTE range: <span class="bold">4,200 - 7,200 ft</span></li>
+          <li>GLDAS soil moisture (5 temporal scales) as auxiliary input</li>
+          <li>Framework imputed <span class="bold">all 592 wells to 100% completeness</span></li>
+        </ul>
+      </div>
+      <div style="flex:0.7; text-align:center;">
+        <div style="background:#f0f9ff; border:2px solid #bae6fd; border-radius:0.1in; padding:0.15in; font-size:0.12in; color:#475569;">
+          <div style="font-size:0.16in; font-weight:700; color:#0284c7; margin-bottom:0.06in;">Data Summary</div>
+          <div style="text-align:left; line-height:1.8;">
+            Wells: <strong>592</strong><br>
+            Months: <strong>288</strong> (Jan 2000 - Dec 2023)<br>
+            Aux variables: <strong>5</strong> (GLDAS soil moisture)<br>
+            Donor wells: <strong>top 15</strong> by correlation<br>
+            MC ranks tested: <strong>3, 5, 8, 10, 12</strong><br>
+            LNN ensemble: <strong>3 models</strong><br>
+            Optimization: <strong>8 trials/well</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Conclusions -->
+  <div class="card emerald" style="grid-row: 3; grid-column: 3;">
+    <h2><span class="num">8</span> Conclusions</h2>
+    <ul style="font-size:0.145in;">
+      <li style="margin-bottom:0.08in;"><span class="bold accent-green">MC+LNN achieves KGE &gt; 0.84</span> under random missing data from 5-50%, with remarkable consistency</li>
+      <li style="margin-bottom:0.08in;"><span class="bold accent-green">KGE &gt; 0.78 for 1-5 year consecutive gaps</span> -- the hardest imputation scenario</li>
+      <li style="margin-bottom:0.08in;"><span class="bold">PCHIP for small gaps</span> is critical: +10-19% KGE over LNN-based small-gap filling</li>
+      <li style="margin-bottom:0.08in;">The coupling is essential: MC alone (KGE 0.24) and LNN alone (0.65) both underperform the integrated pipeline (0.85)</li>
+      <li style="margin-bottom:0.08in;">Successfully imputed <span class="bold">all 592 GSLB wells</span> to temporal completeness</li>
+    </ul>
+    <div style="background:#ecfdf5; border:2px solid #6ee7b7; border-radius:0.08in; padding:0.12in; margin-top:0.1in;">
+      <p style="font-size:0.13in; font-weight:600; color:#059669;">Next: Spatiotemporal interpolation of the complete dataset to continuous groundwater-level fields for GRACE leakage correction (Paper 3)</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <span>Brigham Young University | Department of Civil and Construction Engineering</span>
+  <span>Contact: anomcoin37@gmail.com</span>
+  <span>References: Evans et al. (2020), Hasani et al. (2022), Sharma et al. (2024), Candes & Recht (2009)</span>
+</div>
+
+</body>
+</html>
