@@ -1,175 +1,210 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>PhD Prospectus - Henok Teklu</title>
+<!DOCTYPE html><html><head><meta charset="UTF-8"><title>PhD Prospectus</title>
 <style>
-  @page { size: letter; margin: 1in; }
-  @media print { body { margin: 0; max-width: none; } }
-  body {
-    font-family: 'Palatino Linotype', Palatino, Georgia, serif;
-    max-width: 6.5in; margin: 0 auto; padding: 0.5in 0;
-    color: #222; font-size: 11.5pt; line-height: 1.7;
-  }
-  .title-block { text-align: center; padding: 1.5in 0 0.8in; page-break-after: always; }
-  .title-block h1 { font-size: 22pt; font-weight: 700; color: #222; line-height: 1.35; margin-bottom: 0.4in; }
-  .title-block .author { font-size: 14pt; color: #333; margin-bottom: 0.15in; }
-  .title-block .affil { font-size: 11pt; color: #666; line-height: 1.6; }
-  .title-block .date { font-size: 11pt; color: #666; margin-top: 0.3in; }
-  h2 { font-size: 16pt; font-weight: 700; color: #222; margin-top: 0.45in; margin-bottom: 0.12in; padding-bottom: 4pt; border-bottom: 1.5pt solid #999; }
-  h3 { font-size: 13pt; font-weight: 700; color: #333; margin-top: 0.3in; margin-bottom: 0.08in; }
-  h4 { font-size: 11.5pt; font-weight: 700; color: #333; font-style: italic; margin-top: 0.2in; margin-bottom: 0.06in; }
-  p { margin: 0 0 0.12in 0; text-align: justify; text-indent: 0.3in; }
-  p.ni { text-indent: 0; }
-  p.eq { text-align: center; font-family: 'Cambria Math', serif; font-size: 11.5pt; text-indent: 0; margin: 0.12in 0; }
-  p.obj { text-indent: 0; margin: 0.08in 0; }
-  table { border-collapse: collapse; width: 100%; margin: 0.15in 0; font-size: 10.5pt; }
-  th { background: #f0f0f0; border-top: 1.5pt solid #222; border-bottom: 1pt solid #222; padding: 5pt 8pt; text-align: left; font-weight: 700; font-size: 10pt; }
-  td { padding: 4pt 8pt; border-bottom: 0.5pt solid #ccc; }
-  tbody tr:last-child td { border-bottom: 1.5pt solid #222; }
-  hr { border: none; border-top: 1pt solid #ccc; margin: 0.25in 0; }
-  .refs p { text-indent: -0.4in; padding-left: 0.4in; margin-bottom: 0.06in; font-size: 10.5pt; line-height: 1.5; }
-  em { color: #333; }
-</style>
-</head>
-<body>
-<div class="title-block">
-<h1>Advancing Basin-Scale Groundwater Storage Estimation Through Hybrid Time-Series Imputation, Spatiotemporal Interpolation, and Satellite-Derived Leakage Correction</h1>
-<div class="author">Henok Teklu</div>
-<div class="affil">Department of Civil and Construction Engineering<br>Brigham Young University, Provo, Utah</div>
-<div class="affil" style="margin-top:0.3in;">Advisor: Dr. Norm Jones</div>
-<div class="date">May 2026</div>
-</div>
-
+@page{size:letter;margin:1in}body{font-family:Palatino,Georgia,serif;max-width:6.5in;margin:0 auto;color:#222;font-size:11.5pt;line-height:1.7}
+h1{font-size:18pt;color:#222;margin-top:0.4in;border-bottom:1.5pt solid #999;padding-bottom:4pt}
+h2{font-size:15pt;color:#222;margin-top:0.35in;border-bottom:1.5pt solid #999;padding-bottom:4pt}
+h3{font-size:12.5pt;color:#333;margin-top:0.25in}h4{font-size:11.5pt;color:#333;font-style:italic;margin-top:0.2in}
+p{margin:0 0 10pt;text-align:justify}ul,ol{margin:6pt 0 10pt 24pt}li{margin-bottom:4pt;text-align:justify}
+table{border-collapse:collapse;width:100%;margin:12pt 0;font-size:10.5pt}
+th{background:#f0f0f0;border-top:1.5pt solid #222;border-bottom:1pt solid #222;padding:5pt 8pt;text-align:left;font-weight:700}
+td{padding:4pt 8pt;border-bottom:0.5pt solid #ccc}tbody tr:last-child td{border-bottom:1.5pt solid #222}
+hr{border:none;border-top:1pt solid #ccc;margin:20pt 0}strong{color:#222}em{color:#333}
+</style></head><body><h1>PhD Prospectus</h1>
+<h1>Advancing Basin-Scale Groundwater Storage Estimation Through Hybrid Spatiotemporal Imputation, EOF-Based Interpolation, and Satellite-Derived Leakage Correction</h1>
+<hr />
 <h2>1. Introduction</h2>
 <h3>1.1 Overall Objective and Significance</h3>
-<p class="ni">Groundwater sustains roughly half of global irrigation and a third of municipal supply, yet remains the most poorly monitored component of the terrestrial water budget (Scanlon et al., 2023). In arid and semi-arid basins, where surface reservoirs are increasingly stressed by warming-driven evaporation and growing demand, reliable quantification of groundwater storage change is essential for drought preparedness, allocation policy, and long-term sustainability assessment. The problem is acute: Jasechko et al. (2024) analyzed 170,000 wells across 1,693 aquifer systems worldwide and found rapid declines exceeding 0.5 m/yr in a substantial fraction, with 30% of regional aquifers showing accelerating loss over the past four decades.</p>
-<p>Three independent lines of evidence bear on basin-scale groundwater storage change, each with fundamental limitations. In situ monitoring well networks provide direct water-level observations but are temporally sparse and spatially uneven. Public databases such as the USGS National Water Information System contain millions of individual measurements, yet the median well has fewer than 50 observations spanning decades of record, with gaps of multiple years commonplace. Satellite gravimetry from the Gravity Recovery and Climate Experiment (GRACE) and its successor GRACE-FO resolves total water storage anomalies globally at monthly resolution (Tapley et al., 2004), but the native spatial resolution of approximately 300 km makes basin-scale interpretation subject to signal leakage across boundaries (Vishwakarma et al., 2018), and isolating the groundwater component requires subtracting auxiliary estimates of soil moisture, snow, surface water, and canopy storage from land-surface models whose own fidelity is uncertain. Land-surface models such as those within the Global Land Data Assimilation System (GLDAS; Rodell et al., 2004) provide spatially continuous, temporally complete estimates but inherit assumptions about subsurface representation, irrigation withdrawals, and terminal-lake hydrology that may not hold in heterogeneous, anthropogenically stressed basins.</p>
-<p>The overall objective of this dissertation is to develop and demonstrate an integrated workflow that substantially improves basin-scale groundwater storage estimation in heterogeneous basins by: (1) reconstructing temporally complete well records from sparse in situ observations using a novel hybrid imputation framework; (2) interpolating those reconstructed records to produce continuous spatiotemporal groundwater-level fields; and (3) using those fields to derive spatially distributed GRACE leakage corrections that replace the basin-uniform scalars currently applied in practice. The Great Salt Lake Basin (GSLB), a closed hydrologic system in the Intermountain West with concentrated anthropogenic pumping along the Wasatch Front and a hydrologically significant terminal lake, serves as the demonstration basin throughout.</p>
-
+<p>Groundwater sustains roughly half of global irrigation and a third of municipal water supply, yet it remains the most poorly monitored component of the terrestrial water budget (Scanlon et al., 2023). Jasechko et al. (2024) analyzed 170,000 monitoring wells across 1,693 aquifer systems on six continents and found that 30% exhibit accelerating decline, with rates exceeding 0.5 m/yr widespread in irrigated regions of South Asia, the Middle East, North Africa, and the western United States. The consequences are severe: land subsidence, baseflow reduction, ecosystem degradation, and diminished drought resilience. Reliable basin-scale quantification of groundwater storage change is therefore essential for water-resources planning, yet three fundamental methodological barriers stand in the way.</p>
+<p>First, the in situ monitoring records that underpin any ground-truth storage estimate are riddled with temporal gaps. Public databases such as the USGS National Water Information System contain millions of individual water-level measurements, but the median well has fewer than 50 observations scattered across decades, with gaps of multiple years commonplace. Standard interpolation methods (linear, spline) fail for gaps longer than one to two years, and the machine-learning approaches currently used to fill these gaps treat each well independently, ignoring the spatial correlation structure across the monitoring network.</p>
+<p>Second, converting imputed point-well records into the continuous spatial fields needed for volumetric storage estimation requires spatial interpolation. Kriging, the dominant geostatistical method, assumes stationarity that is routinely violated in heterogeneous basins where water-table elevation spans hundreds to thousands of meters. No existing method simultaneously exploits both the shared temporal patterns across wells and the spatial structure of the monitoring network for interpolation.</p>
+<p>Third, satellite gravimetry from GRACE/GRACE-FO (Tapley et al., 2004) provides the only global, spatially continuous measure of total water storage change, but its coarse resolution (~300 km) introduces signal leakage that must be corrected before basin-scale groundwater storage can be isolated. The leakage correction factor is conventionally applied as a single basin-uniform scalar, obscuring the spatial heterogeneity of storage change within the basin.</p>
+<p>These three barriers form a chain: incomplete well records limit the quality of spatial fields, which in turn limit the fidelity of satellite-derived corrections. This dissertation addresses all three barriers in sequence through three papers, each building on the outputs of the previous:</p>
+<ol>
+<li><strong>Paper 1</strong> (completed) establishes baseline groundwater storage estimates for the Great Salt Lake Basin using multiple independent methods, revealing the sensitivity of GRACE-derived estimates to leakage handling and motivating the need for improved imputation.</li>
+<li><strong>Paper 2</strong> develops a novel hybrid imputation framework coupling Matrix Completion with Liquid Neural Networks (MC+LNN) that jointly exploits spatial cross-well correlations and continuous-time temporal dynamics -- the first such coupling in the groundwater literature.</li>
+<li><strong>Paper 3</strong> applies the imputed records from Paper 2 to produce spatially continuous groundwater fields via EOF-based interpolation, and uses those fields to derive the first pixel-wise GRACE leakage correction grid calibrated against spatially complete in situ data.</li>
+</ol>
+<p>The Great Salt Lake Basin (GSLB) serves as the initial validation site, chosen for its dense USGS monitoring network (592 eligible wells), heterogeneous hydrogeology spanning four states, and concentrated anthropogenic pumping along the Wasatch Front. However, the methods are designed to be general-purpose: the imputation framework requires only well locations, irregular observations, and globally available GLDAS auxiliary data, with all hyperparameters auto-optimized per well. Validation on additional basins across diverse hydrogeological and climatic settings -- including sites in Sub-Saharan Africa and South America where monitoring networks are sparser -- is planned to demonstrate transferability.</p>
 <h3>1.2 Background</h3>
-<h4>Groundwater Monitoring and the Gap Problem</h4>
-<p class="ni">Evans et al. (2020a) developed the Groundwater Level Mapping Tool (GWLMT), an open-source web application that couples Extreme Learning Machines (ELM; Huang et al., 2006) with Earth observation data from GRACE and GLDAS to impute missing groundwater levels. Evans et al. (2020b) showed that the ELM-based approach achieves superior imputation compared to conventional interpolation. Ramirez et al. (2022) extended this framework by incorporating inductive bias from remote sensing, and Ramirez et al. (2023) further advanced the methodology through iterative refinement exploiting both spatial and temporal correlations. Stevens et al. (2025) and Shepard et al. (2025) applied these methods to basin-scale storage assessment in the Central Valley and Klamath watershed, respectively.</p>
-<p>These ELM-based approaches operate primarily in the temporal domain: each well is imputed independently using auxiliary time series as features. Jeong et al. (2020) demonstrated that recurrent neural networks can reconstruct missing groundwater levels with high accuracy for wells with correlated neighbors, but performance degrades sharply beyond one to two year gaps. Wunsch et al. (2021) compared LSTM, CNN, and NARX architectures, finding that multivariate temporal models outperform univariate ones but remain limited by training data availability during gaps. Gharehbaghi et al. (2022) and Lin et al. (2022) showed GRU networks perform comparably to LSTM. However, all these approaches treat wells independently, incorporating spatial information only through satellite-derived covariates rather than directly exploiting the cross-well correlation structure.</p>
-<p>Regional correlation-based approaches represent an intermediate strategy. Levy et al. (2025) developed ARCHI (Automated Regional Correlation Analysis for Hydrologic Record Imputation), a USGS R package that imputes missing data in target records by linear regression using more complete reference records as predictors. ARCHI's iterative algorithm allows each site to serve as both target and reference, progressively growing the pool of complete records. While ARCHI effectively exploits spatial correlation through donor regression, it operates within a linear framework and does not incorporate auxiliary climatic forcings or nonlinear temporal dynamics.</p>
-<p>Matrix completion offers a fundamentally different perspective by arranging all well records as a partially observed matrix and exploiting low-rank structure. Candes and Recht (2009) proved that low-rank matrices can be recovered from surprisingly few observed entries. Sharma, Kim, and Tayerani Charmchi (2024) evaluated SoftImpute for monthly groundwater levels, finding it excels in sparse networks -- but treated it as a standalone method without temporal coupling.</p>
-<p>Hasani et al. (2021) introduced Liquid Time-Constant Networks, and the subsequent Closed-form Continuous-depth architecture (Hasani et al., 2022) achieves one order of magnitude faster training by eliminating numerical ODE solvers. No prior work has combined matrix completion with continuous-time neural networks for groundwater imputation. This dissertation proposes a coupled MC+LNN framework: matrix completion exploits cross-well correlations while the LNN refines using continuous-time dynamics conditioned on auxiliary climatic forcings.</p>
-
-<h4>Spatial Interpolation of Groundwater Levels</h4>
-<p class="ni">Geostatistical methods, particularly kriging, have been dominant but their stationarity assumptions are frequently violated in heterogeneous basins. Empirical Orthogonal Function (EOF) analysis decomposes spatiotemporal fields into temporal modes and spatial loadings, enabling interpolation by estimating loadings at unobserved locations rather than raw values directly.</p>
-
-<h4>GRACE Leakage Correction</h4>
-<p class="ni">Long et al. (2014) established forward modeling for GRACE leakage correction. Ma et al. (2024) introduced Coordinated Forward Modeling at 0.5-degree scale. Tripathi et al. (2022) showed basin-average corrections can be misleading. Li et al. (2024) estimated pixel-scale leakage factors using in situ data.</p>
-
-<h4>Great Salt Lake Basin</h4>
-<p class="ni">The GSLB covers approximately 93,000 km&sup2;. Consumptive uses have depleted inflows by 39% (Null and Wurtsbaugh, 2020). Wine (2019) argued consumptive use dominates over climate change. Bigalke et al. (2025) attributed the 2022 record low to reduced streamflow and warming. Hall et al. (2024) documented 68.7 km&sup3; groundwater loss across the Great Basin. Zamora and Inkenbrandt (2024) revised the groundwater contribution to the GSL upward to 10% of total inflows.</p>
-
+<h4>1.2.1 The Gap Problem in Groundwater Monitoring</h4>
+<p>The utility of in situ groundwater-level records depends critically on temporal completeness. In practice, wells are installed, monitored intermittently, and often abandoned, producing records with gaps ranging from months to years. A progression of imputation methods has been developed to address this challenge.</p>
+<p>Evans et al. (2020a) introduced the Groundwater Level Mapping Tool (GWLMT), coupling Extreme Learning Machines (ELM; Huang et al., 2006) with satellite-derived auxiliary variables from GRACE and GLDAS. Evans et al. (2020b) demonstrated that ELM with Earth observation inputs substantially outperforms conventional interpolation. Ramirez et al. (2022) incorporated inductive bias from remote sensing, and Ramirez et al. (2023) added iterative refinement using both spatial correlations from neighboring wells and temporal correlations from auxiliary variables. This line of work has been applied to basin-scale storage assessment in California's Central Valley (Stevens et al., 2025) and the Klamath watershed (Shepard et al., 2025).</p>
+<p>Deep learning approaches have also been explored. Jeong et al. (2020) demonstrated that recurrent neural networks can reconstruct missing groundwater levels with high accuracy but degrade sharply beyond one- to two-year gaps. Wunsch et al. (2021) compared LSTM, CNN, and NARX architectures, finding that multivariate models consistently outperform univariate ones. Gharehbaghi et al. (2022) and Lin et al. (2022) showed GRU networks perform comparably to LSTM.</p>
+<p>A common limitation across these approaches is that they treat each well's imputation as essentially independent. Spatial information enters only indirectly through basin-average satellite-derived covariates, not through the actual cross-well correlation structure. The recently released ARCHI package (Levy et al., 2025) addresses this by using iterative donor regression -- each well imputed via linear regression from more complete reference wells -- but operates within a purely linear framework without auxiliary climatic forcings or nonlinear temporal modeling.</p>
+<p>Matrix completion offers a fundamentally different perspective by arranging all well records as a partially observed matrix and exploiting low-rank structure to infer missing entries from cross-well correlations (Candes and Recht, 2009). Sharma, Kim, and Tayerani Charmchi (2024) evaluated SoftImpute for groundwater levels in the Chao-Phraya River Basin, finding it excels in sparse networks -- but treated it as a standalone method without temporal coupling. On the temporal side, Liquid Neural Networks with Closed-form Continuous-depth cells (Hasani et al., 2022) model dynamics as continuous-time ODEs, naturally accommodating irregular sampling without resampling -- a property uniquely suited to groundwater monitoring data.</p>
+<p><strong>No prior work has combined matrix completion with continuous-time neural networks for groundwater imputation.</strong> This dissertation proposes a coupled MC+LNN framework in which matrix completion provides spatially informed initial estimates by exploiting cross-well correlations, and the LNN refines those estimates using continuous-time dynamics conditioned on auxiliary climatic forcings. The coupling is complementary: MC handles the spatial dimension, LNN handles the temporal dimension.</p>
+<h4>1.2.2 Spatial Interpolation of Groundwater Levels</h4>
+<p>Converting imputed point-well records to continuous fields requires spatial interpolation. Geostatistical methods, particularly kriging, have been dominant but their stationarity assumptions are frequently violated in heterogeneous basins (Ahmadi et al., 2024; Li et al., 2025). Empirical Orthogonal Function (EOF) analysis decomposes spatiotemporal fields into temporal modes and spatial loadings, enabling interpolation by estimating a few smooth spatial scalars at unobserved locations rather than hundreds of raw time values. This approach has been widely used in climate science but has not been systematically applied to groundwater spatial interpolation in the context of satellite-derived storage estimation.</p>
+<h4>1.2.3 GRACE Leakage Correction</h4>
+<p>The GRACE partition equation for groundwater storage anomalies requires a leakage correction factor Lf that is conventionally applied as a basin-uniform scalar (Vishwakarma et al., 2018). Long et al. (2014) established forward modeling for leakage correction. Ma et al. (2024) demonstrated that sub-regional trends can diverge substantially from basin averages. Tripathi et al. (2022) showed that basin-average corrections can be misleading due to compensating errors across pixels. Li et al. (2024) estimated pixel-scale correction factors using in situ data, establishing precedent for the spatially distributed correction proposed here. However, all prior pixel-scale approaches have been constrained by the incompleteness of the underlying in situ records -- the very limitation that Papers 1 and 2 of this dissertation address.</p>
+<h4>1.2.4 The Great Salt Lake Basin as Initial Validation Site</h4>
+<p>The GSLB is a closed hydrologic system covering approximately 93,000 km-squared. Consumptive water uses have depleted inflows to the Great Salt Lake by 39% (Null and Wurtsbaugh, 2020), while Bigalke et al. (2025) attributed the 2022 record-low lake volume to a combination of reduced streamflow and climate warming. Hall et al. (2024) documented 68.7 km-cubed of groundwater loss from 2002-2023 across the broader Great Basin. Zamora and Inkenbrandt (2024) revised the groundwater contribution to the lake upward to 10% of total inflows. The basin's dense USGS monitoring network (592 eligible wells over 2000-2023), heterogeneous hydrogeology, and concentrated anthropogenic stress make it an ideal initial testbed. Subsequent validation on basins with sparser networks and different climatic regimes will test the framework's global transferability.</p>
 <h3>1.3 Specific Objectives</h3>
-<p class="obj"><strong>Objective 1 (Paper 1).</strong> Quantify multi-decadal groundwater storage change in the GSLB (2002-2024) by integrating GRACE-derived, GLDAS-derived, and in situ estimates, and assess the consequences of surface-water inclusion and GRACE leakage correction.</p>
-<p class="obj"><strong>Objective 2 (Paper 2).</strong> Develop and validate a hybrid imputation framework combining PCHIP for short gaps with coupled Matrix Completion and Liquid Neural Network (MC+LNN) for long gaps, using auxiliary climatic forcings as continuous-time inputs.</p>
-<p class="obj"><strong>Objective 3 (Paper 3).</strong> Develop a spatiotemporal interpolation framework using spatial trend decomposition and EOF analysis to produce continuous groundwater-level fields, and apply those fields to derive spatially distributed GRACE leakage correction factors.</p>
-
-<hr>
-
+<p>The three objectives are sequential -- each builds on the outputs of the previous, forming an integrated pipeline from raw observations to satellite-corrected storage estimates:</p>
+<p><strong>Objective 1 (Paper 1).</strong> Quantify multi-decadal groundwater storage change in the GSLB (2002-2024) by integrating GRACE-derived, GLDAS-derived, and in situ estimates within a unified framework. Identify the methodological sensitivity to surface-water inclusion and GRACE leakage correction that motivates the spatially distributed approach of Paper 3. <em>(Completed; published.)</em></p>
+<p><strong>Objective 2 (Paper 2).</strong> Develop and validate a general-purpose hybrid imputation framework for sparse, irregular groundwater-level time series that couples PCHIP for short gaps with Matrix Completion + Liquid Neural Networks (MC+LNN) for long gaps, using globally available auxiliary climatic forcings. Validate initially on the GSLB, with planned extension to basins in Africa and South America.</p>
+<p><strong>Objective 3 (Paper 3).</strong> Apply the imputation framework from Paper 2 to produce spatially continuous groundwater-level fields via spatial trend decomposition and EOF analysis, and use those fields to derive the first pixel-wise GRACE leakage correction grid calibrated against spatially complete in situ data. Benchmark against independent mascon-based estimates.</p>
+<hr />
 <h2>2. Objective 1 (Paper 1)</h2>
 <h3>2.1 Objective</h3>
-<p class="ni">To quantify groundwater storage change in the GSLB from 2002 through 2024 using multiple independent methods, evaluate methodological sensitivities, and produce a continuous record for water-resources planning.</p>
+<p>To quantify groundwater storage change in the Great Salt Lake Basin from 2002 through 2024 using multiple independent estimation methods, evaluate methodological sensitivities, and establish the baseline that motivates the imputation and leakage-correction advances of Papers 2 and 3.</p>
 <h3>2.2 Background</h3>
-<p class="ni">Sustained low Great Salt Lake levels have raised ecological concerns (Abbott et al., 2023). Prior GRACE studies addressed the broader Great Basin (Hall et al., 2024) and localized loss via GPS (Young, Kreemer, and Blewitt, 2021), but no multi-method record specific to the full GSLB has been produced.</p>
+<p>The GSLB's basin-scale groundwater contribution has been characterized only at sub-basin scale or in steady-state analyses (Zamora and Inkenbrandt, 2024). Prior GRACE studies addressed the broader Great Basin (Hall et al., 2024) or localized loss via GPS (Young, Kreemer, and Blewitt, 2021), but no long-term, multi-method record specific to the full GSLB existed.</p>
 <h3>2.3 Methods</h3>
-<p class="ni">Five GWSa estimates were computed: GRACE-raw, GRACE-sw (surface-water adjusted), GRACE-Lf (leakage-corrected, Lf=2), GLDAS-2.2, and GWDM (in situ via the GWLMT workflow of Evans et al., 2020a; Ramirez et al., 2023).</p>
+<p>Five GWSa estimates were computed: (1) GRACE-raw (TWSa minus GLDAS stores); (2) GRACE-sw (surface-water adjusted); (3) GRACE-Lf (leakage-corrected, Lf=2 calibrated against in situ data); (4) GLDAS-2.2 (GRACE-assimilated CLSM); and (5) GWDM (in situ via the GWLMT workflow of Evans et al., 2020a, using PCHIP, ELM, and kriging with specific yield 0.15).</p>
 <h3>2.4 Results</h3>
-<p class="ni">All methods identified two major drawdowns (2012-2016, 2019-2022). GRACE-Lf yielded 10.1 km&sup3; loss for 2011-2016, consistent with 10.9 &plusmn; 2.8 km&sup3; from GPS. Surface water accounts for 31% of storage change. The leakage factor improved GRACE-in situ correlation from 0.17 to 0.77.</p>
-
-<hr>
-
+<p>All methods identified two major drawdowns (2012-2016, 2019-2022). The leakage-corrected GRACE estimate yielded 10.1 km-cubed loss for 2011-2016, consistent with the independent GPS estimate of 10.9 +/- 2.8 km-cubed (Young, Kreemer, and Blewitt, 2021). Surface water accounted for 31% of basin storage change. The basin-uniform leakage factor improved GRACE-in situ correlation from 0.17 to 0.77, but this uniform treatment masks known spatial heterogeneity in pumping and recharge -- motivating the pixel-wise approach of Paper 3. The in situ estimate itself was limited by well-record gaps and reliance on a single imputation method (ELM) -- motivating the improved imputation of Paper 2.</p>
+<hr />
 <h2>3. Objective 2 (Paper 2)</h2>
 <h3>3.1 Objective</h3>
-<p class="ni">To develop, validate, and benchmark a hybrid imputation framework combining classical interpolation, matrix completion, and continuous-time neural networks for groundwater-level time series with multi-year gaps.</p>
+<p>To develop, validate, and benchmark a general-purpose hybrid imputation framework that, for the first time, jointly exploits spatial cross-well correlations (via matrix completion) and continuous-time temporal dynamics (via liquid neural networks) for reconstructing groundwater-level records with multi-year gaps.</p>
 <h3>3.2 Methods</h3>
-<p class="ni"><strong>Stage 1: PCHIP.</strong> Gaps &le;24 months are filled using shape-preserving PCHIP interpolation, densifying the network for better donor correlations in Stage 2.</p>
-<p class="ni"><strong>Stage 2: MC+LNN.</strong> Large gaps are filled in three phases: (a) ARCHI donor regression selects top-15 correlated wells and provides trend-aware initialization; (b) SoftImpute matrix completion on a composite matrix of target, donors, GLDAS auxiliary variables, and seasonal encoding; (c) LNN CFC temporal refinement using continuous-time dynamics:</p>
-<p class="eq">x(t + dt) = x &middot; e<sup>-&lambda;&middot;dt</sup> + (b / &lambda;) &middot; (1 &minus; e<sup>-&lambda;&middot;dt</sup>)</p>
-<p class="ni">MC predictions serve as reservoir input during gaps, but readout trains only on real observations. Validated on 592 GSLB wells (2000-2023) with random missing (5-50%) and consecutive gap (1-5 year) cross-validation.</p>
-
+<p>The framework operates on monthly-aggregated well observations via a two-stage pipeline:</p>
+<p><strong>Stage 1: PCHIP Small-Gap Fill.</strong> Gaps of 24 months or shorter are filled using Piecewise Cubic Hermite Interpolating Polynomials, which preserve monotonicity and local shape without oscillation. This deterministic step densifies the monitoring network, providing the spatial coverage needed for reliable donor correlation in Stage 2.</p>
+<p><strong>Stage 2: MC+LNN Large-Gap Fill.</strong> Gaps exceeding 24 months are filled via three coupled phases:</p>
+<p><em>Phase 2a -- Donor Regression.</em> For each target well, the top 15 most correlated donor wells are selected from the PCHIP-densified network. Per-donor OLS regression provides a trend-aware initialization for the gap period, following the donor-correlation concept of ARCHI (Levy et al., 2025) but extending it into a matrix-completion framework.</p>
+<p><em>Phase 2b -- Matrix Completion.</em> A composite matrix is constructed with rows representing the target well, weighted donor wells, GLDAS auxiliary variables (soil moisture at five temporal scales), and seasonal encoding. SoftImpute (iterative truncated SVD with adaptive rank selection) fills the target row's gaps by exploiting the low-rank structure shared across all rows. Variance-preserving bias correction ensures the predictions match the observed mean and variance.</p>
+<p><em>Phase 2c -- LNN Temporal Refinement.</em> A Liquid Neural Network with Closed-form Continuous-time cells (Hasani et al., 2022) refines the MC predictions. The MC output serves as reservoir input during gap periods, while the LNN readout is trained exclusively on real observations via ridge regression. This design ensures the temporal model learns from ground truth while benefiting from MC's spatial context. Hyperparameters are auto-optimized per well via grid search over 8 trials with 3-model ensemble selection by Kling-Gupta Efficiency.</p>
+<p><strong>Validation.</strong> The framework is validated on the GSLB well network (592 wells, 288 months, 2000-2023) under two cross-validation scenarios: random missing data (5-50% removed, 50 trials each) and consecutive year gaps (1-5 years, 20 trials each). Performance is assessed via KGE, R-squared, and RMSE, with baselines including ELM, pure MC, and pure LNN to isolate each component's contribution. Additional basins across diverse hydrogeological and climatic settings are planned for transferability assessment.</p>
 <h3>3.3 Anticipated Results</h3>
+<p>Cross-validation on the GSLB demonstrates:</p>
 <table>
-<thead><tr><th>Scenario</th><th>KGE</th><th>R&sup2;</th><th>RMSE (ft)</th></tr></thead>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>KGE</th>
+<th>R-squared</th>
+<th>RMSE (ft)</th>
+</tr>
+</thead>
 <tbody>
-<tr><td>5% random missing</td><td>0.837 &plusmn; 0.085</td><td>0.771</td><td>2.53</td></tr>
-<tr><td>20% random missing</td><td>0.853 &plusmn; 0.051</td><td>0.787</td><td>2.64</td></tr>
-<tr><td>50% random missing</td><td>0.847 &plusmn; 0.035</td><td>0.788</td><td>2.74</td></tr>
-<tr><td>1-year consecutive gap</td><td>0.783 &plusmn; 0.116</td><td>0.703</td><td>2.98</td></tr>
-<tr><td>3-year consecutive gap</td><td>0.802 &plusmn; 0.076</td><td>0.730</td><td>3.02</td></tr>
-<tr><td>5-year consecutive gap</td><td>0.815 &plusmn; 0.063</td><td>0.744</td><td>2.91</td></tr>
+<tr>
+<td>5% random missing</td>
+<td>0.837 +/- 0.085</td>
+<td>0.771</td>
+<td>2.53</td>
+</tr>
+<tr>
+<td>20% random missing</td>
+<td>0.853 +/- 0.051</td>
+<td>0.787</td>
+<td>2.64</td>
+</tr>
+<tr>
+<td>50% random missing</td>
+<td>0.847 +/- 0.035</td>
+<td>0.788</td>
+<td>2.74</td>
+</tr>
+<tr>
+<td>1-year consecutive gap</td>
+<td>0.783 +/- 0.116</td>
+<td>0.703</td>
+<td>2.98</td>
+</tr>
+<tr>
+<td>3-year consecutive gap</td>
+<td>0.802 +/- 0.076</td>
+<td>0.730</td>
+<td>3.02</td>
+</tr>
+<tr>
+<td>5-year consecutive gap</td>
+<td>0.815 +/- 0.063</td>
+<td>0.744</td>
+<td>2.91</td>
+</tr>
 </tbody>
 </table>
-<p class="ni">PCHIP small-gap fill is critical: replacing it with LNN degrades KGE by 10-19%. The framework imputes all 592 wells to completeness.</p>
-
-<hr>
-
+<p>KGE remains above 0.84 across all random-missing rates and above 0.78 for all consecutive-gap lengths, with RMSE consistently below 3 ft. The PCHIP small-gap stage is critical: replacing it with LNN-based filling degrades KGE by 10-19%, because PCHIP densification improves donor correlations for the MC stage. Cross-validation across low-variance (std &lt; 0.2 ft), medium-variance, and high-variance (std &gt; 20 ft) wells confirms robust performance across the full variance spectrum, with 13 of 15 tested wells achieving KGE above 0.65. The framework imputes all 592 GSLB wells to temporal completeness, producing the input dataset for Paper 3.</p>
+<hr />
 <h2>4. Objective 3 (Paper 3)</h2>
 <h3>4.1 Objective</h3>
-<p class="ni">To produce continuous groundwater-level fields via spatiotemporal interpolation and derive spatially distributed GRACE leakage correction factors.</p>
+<p>To produce spatially continuous groundwater-level fields from the imputed records of Paper 2 via EOF-based interpolation, and to use those fields to derive the first pixel-wise GRACE leakage correction grid calibrated against spatially complete in situ data.</p>
 <h3>4.2 Methods</h3>
-<p class="ni">Three-stage interpolation: (1) degree-2 polynomial trend surface of WTE mean as f(lat, lon, elevation), R&sup2;=0.957; (2) EOF decomposition of detrended residuals via SVD; (3) IDW interpolation of spatial loadings to grid cells. The interpolated fields are converted to storage anomalies and used to calibrate pixel-wise leakage factors Lf(&phi;,&lambda;), benchmarked against mascon-based GWSa (Watkins et al., 2015).</p>
+<p><strong>Spatial Interpolation.</strong> The complete imputed dataset (592 wells, 288 months) is interpolated to a regular grid via three stages: (1) a degree-2 polynomial trend surface of temporal-mean WTE as a function of latitude, longitude, and elevation (R-squared = 0.957); (2) EOF decomposition of the detrended residuals via SVD into k temporal modes and spatial loadings; (3) IDW interpolation of the spatial loadings -- not raw values -- to grid cells. This approach guarantees temporal coherence because all timesteps share the same modal structure, and reduces the interpolation problem from 288 values to k small scalars per grid cell.</p>
+<p><strong>Leakage Correction.</strong> The interpolated fields are converted to volumetric storage anomalies using spatially varying specific yield and aggregated to the 0.5-degree GRACE grid. A pixel-wise leakage factor Lf(phi, lambda) is calibrated against the in situ-derived GWSa. For grid cells lacking sufficient well coverage, Lf is propagated via a covariate-aware model.</p>
+<p><strong>Benchmarking.</strong> The resulting GWSa is compared against mascon-based GWSa (Watkins et al., 2015), which handles leakage structurally rather than empirically. Because all auxiliary terms are identical, any divergence is attributable to leakage handling alone.</p>
 <h3>4.3 Anticipated Results</h3>
-<p class="ni">EOF interpolation achieves RMSE 32.3 ft (49% reduction vs IDW, 73% vs kriging). The pixel-wise Lf grid is expected to show largest factors along the Wasatch Front, with smaller values in the West Desert.</p>
-
-<hr>
-
+<p>Leave-one-out cross-validation on 30 wells yields interpolation RMSE of 32.3 ft, a 49% reduction versus IDW (62.9 ft) and 73% versus per-timestep kriging (121.9 ft). The pixel-wise Lf grid is expected to show large factors along the Wasatch Front (concentrated pumping) and near-unity values in the West Desert (diffuse stress), departing substantially from the basin-uniform Lf = 2 of Paper 1 and improving sub-basin agreement with the in situ reconstruction.</p>
+<hr />
 <h2>5. Timeline</h2>
 <table>
-<thead><tr><th>Period</th><th>Activity</th></tr></thead>
+<thead>
+<tr>
+<th>Period</th>
+<th>Activity</th>
+</tr>
+</thead>
 <tbody>
-<tr><td>May 2026</td><td>Paper 1 published; Paper 2 validation complete</td></tr>
-<tr><td>Jun-Aug 2026</td><td>Paper 2 manuscript drafting</td></tr>
-<tr><td>Sep 2026</td><td>Paper 2 submission</td></tr>
-<tr><td>Sep-Dec 2026</td><td>Paper 3 gridded Lf calibration and sensitivity analyses</td></tr>
-<tr><td>Jan-Feb 2027</td><td>Paper 3 results, mascon benchmarking</td></tr>
-<tr><td>Mar 2027</td><td>Paper 3 manuscript drafting</td></tr>
-<tr><td>Apr 2027</td><td>Paper 3 submission; dissertation compilation</td></tr>
-<tr><td>May-Jun 2027</td><td>Defense and graduation</td></tr>
+<tr>
+<td>May 2026</td>
+<td>Paper 1 published; Paper 2 method development and validation complete</td>
+</tr>
+<tr>
+<td>Jun-Aug 2026</td>
+<td>Paper 2 manuscript drafting; begin cross-basin validation (Africa, South America sites)</td>
+</tr>
+<tr>
+<td>Sep 2026</td>
+<td>Paper 2 submission</td>
+</tr>
+<tr>
+<td>Sep-Dec 2026</td>
+<td>Paper 3 gridded Lf calibration, covariate propagation, sensitivity analyses</td>
+</tr>
+<tr>
+<td>Jan-Feb 2027</td>
+<td>Paper 3 results, mascon benchmarking, cross-basin interpolation testing</td>
+</tr>
+<tr>
+<td>Mar 2027</td>
+<td>Paper 3 manuscript drafting</td>
+</tr>
+<tr>
+<td>Apr 2027</td>
+<td>Paper 3 submission; dissertation compilation</td>
+</tr>
+<tr>
+<td>May-Jun 2027</td>
+<td>Dissertation defense and graduation</td>
+</tr>
 </tbody>
 </table>
-
-<hr>
-
+<hr />
 <h2>References</h2>
-<div class="refs">
-<p>Abbott, B. W., et al. (2023). Emergency measures needed to rescue Great Salt Lake from ongoing collapse. Brigham Young University.</p>
-<p>Bigalke, S., Loikith, P. C., &amp; Siler, N. (2025). Explaining the 2022 Record Low Great Salt Lake Volume. <em>Geophysical Research Letters</em>, 52, e2024GL112154.</p>
-<p>Candes, E. J. &amp; Recht, B. (2009). Exact matrix completion via convex optimization. <em>Foundations of Computational Mathematics</em>, 9(6), 717-772.</p>
-<p>Evans, S., Williams, G. P., Jones, N. L., Ames, D. P., &amp; Nelson, E. J. (2020a). Exploiting Earth Observation Data to Impute Groundwater Level Measurements with an Extreme Learning Machine. <em>Remote Sensing</em>, 12, 2044.</p>
-<p>Evans, S. W., Jones, N. L., Williams, G. P., Ames, D. P., &amp; Nelson, E. J. (2020b). Groundwater Level Mapping Tool. <em>Environmental Modelling &amp; Software</em>, 131, 104782.</p>
-<p>Gharehbaghi, A., et al. (2022). Groundwater level prediction with meteorologically sensitive GRU neural networks. <em>Journal of Hydrology</em>, 612, 128262.</p>
-<p>Hall, D. K., et al. (2024). Snowfall Replenishes Groundwater Loss in the Great Basin. <em>Geophysical Research Letters</em>, 51, e2023GL107913.</p>
-<p>Hasani, R., et al. (2021). Liquid Time-constant Networks. <em>Proceedings of the AAAI Conference on AI</em>, 35(9), 7657-7666.</p>
-<p>Hasani, R., et al. (2022). Closed-form continuous-time neural networks. <em>Nature Machine Intelligence</em>, 4, 992-1003.</p>
-<p>Huang, G.-B., Zhu, Q.-Y., &amp; Siew, C.-K. (2006). Extreme learning machine: Theory and applications. <em>Neurocomputing</em>, 70(1-3), 489-501.</p>
-<p>Jasechko, S., et al. (2024). Rapid groundwater decline and some cases of recovery in aquifers globally. <em>Nature</em>, 625, 715-720.</p>
-<p>Jeong, J., et al. (2020). Estimation of groundwater level based on robust training of recurrent neural networks. <em>Journal of Hydrology</em>, 582, 124512.</p>
-<p>Levy, Z., Glas, R. L., Stagnitta, T. J., &amp; Terry, N. (2025). ARCHI: A new R package for automated imputation of regionally correlated hydrologic records. <em>Groundwater</em>. https://doi.org/10.1111/gwat.13474</p>
-<p>Li, B., et al. (2024). A New GRACE Downscaling Approach for High-Resolution Groundwater Storage Changes. <em>Water Resources Research</em>, 60, e2023WR035210.</p>
-<p>Lin, H., et al. (2022). Time series-based groundwater level forecasting using gated recurrent unit deep neural networks. <em>Engineering Applications of Computational Fluid Mechanics</em>, 16(1), 1655-1672.</p>
-<p>Long, D., et al. (2014). Drought and flood monitoring using extended GRACE data. <em>Remote Sensing of Environment</em>, 155, 145-160.</p>
-<p>Ma, G., et al. (2024). Improved Sub-Regional Groundwater Storage Anomaly Using Coordinated Forward Modeling. <em>Water Resources Research</em>, 60(7), e2023WR036105.</p>
-<p>Null, S. E. &amp; Wurtsbaugh, W. A. (2020). Water Development, Consumptive Water Uses, and Great Salt Lake. In <em>Great Salt Lake Biology</em>, Springer.</p>
-<p>Ramirez, S. G., Williams, G. P., &amp; Jones, N. L. (2022). Groundwater Level Data Imputation Using Machine Learning and Remote Earth Observations. <em>Remote Sensing</em>, 14, 5509.</p>
-<p>Ramirez, S. G., et al. (2023). Improving Groundwater Imputation through Iterative Refinement. <em>Water</em>, 15, 1236.</p>
-<p>Rodell, M., et al. (2004). The global land data assimilation system. <em>Bulletin of the AMS</em>, 85(3), 381-394.</p>
-<p>Scanlon, B. R., et al. (2023). Global water resources and the role of groundwater. <em>Nature Reviews Earth &amp; Environment</em>, 4, 87-101.</p>
-<p>Sharma, Y. K., Kim, S., &amp; Tayerani Charmchi, A. S. (2024). Strategic imputation of groundwater data using machine learning. <em>Groundwater for Sustainable Development</em>, 27, 101300.</p>
-<p>Shepard, D., Jones, N. L., &amp; Williams, G. P. (2025). Application of the Groundwater Data Mapper Tool in the Klamath Watershed. <em>Hydrology</em>, 12(6), 140.</p>
-<p>Stevens, M. D., et al. (2025). Groundwater Storage Loss in the Central Valley. <em>Environmental Modelling &amp; Software</em>, 186, 106368.</p>
-<p>Tapley, B. D., et al. (2004). GRACE measurements of mass variability. <em>Science</em>, 305(5683), 503-505.</p>
-<p>Tripathi, V., et al. (2022). Scaling methods of leakage correction in GRACE for the Indus Basin. <em>HESS</em>, 26, 4515-4535.</p>
-<p>Vishwakarma, B. D., et al. (2018). Spatial resolution of GRACE satellite products for hydrology. <em>Remote Sensing</em>, 10(6), 852.</p>
-<p>Watkins, M. M., et al. (2015). Improved methods for observing Earth's mass distribution with GRACE. <em>JGR: Solid Earth</em>, 120(4), 2648-2671.</p>
-<p>Wine, M. L. (2019). Climatization -- Negligent Attribution of Great Salt Lake Desiccation. <em>Climate</em>, 7(5), 67.</p>
-<p>Wunsch, A., Liesch, T., &amp; Broda, S. (2021). Groundwater level forecasting with ANNs: LSTM, CNN, and NARX. <em>HESS</em>, 25, 1671-1687.</p>
-<p>Young, Z., Kreemer, C., &amp; Blewitt, G. (2021). GPS Constraints on Drought-Induced Groundwater Loss Around Great Salt Lake. <em>JGR: Solid Earth</em>, 126, e2021JB022020.</p>
-<p>Zamora, H. &amp; Inkenbrandt, P. (2024). Groundwater flow and salinity contribution to the Great Salt Lake. <em>Geosites</em>, 51, 1-24.</p>
-</div>
-</body>
-</html>
+<p>Abbott, B. W., et al. (2023). Emergency measures needed to rescue Great Salt Lake from ongoing collapse. Brigham Young University. https://pws.byu.edu/great-salt-lake</p>
+<p>Ahmadi, A., et al. (2024). Integrating an interpolation technique and AI models using Bayesian model averaging to enhance groundwater level monitoring. Earth Science Informatics, 17, 4963-4984.</p>
+<p>Bigalke, S., Loikith, P. C., &amp; Siler, N. (2025). Explaining the 2022 Record Low Great Salt Lake Volume. Geophysical Research Letters, 52, e2024GL112154.</p>
+<p>Candes, E. J. &amp; Recht, B. (2009). Exact matrix completion via convex optimization. Foundations of Computational Mathematics, 9(6), 717-772.</p>
+<p>Croteau, M. J., Nerem, R. S., Loomis, B. D., &amp; Mitrovica, J. X. (2021). GRACE Fast Mascons From Spherical Harmonics and a Regularization Design Trade Study. Journal of Geophysical Research: Solid Earth, 126, e2021JB022113.</p>
+<p>Evans, S., Williams, G. P., Jones, N. L., Ames, D. P., &amp; Nelson, E. J. (2020a). Exploiting Earth Observation Data to Impute Groundwater Level Measurements with an Extreme Learning Machine. Remote Sensing, 12, 2044. https://doi.org/10.3390/rs12122044</p>
+<p>Evans, S. W., Jones, N. L., Williams, G. P., Ames, D. P., &amp; Nelson, E. J. (2020b). Groundwater Level Mapping Tool: An open source web application for assessing groundwater sustainability. Environmental Modelling &amp; Software, 131, 104782. https://doi.org/10.1016/j.envsoft.2020.104782</p>
+<p>Gharehbaghi, A., Ghasemlounia, R., Ahmadi, F., &amp; Albaji, M. (2022). Groundwater level prediction with meteorologically sensitive Gated Recurrent Unit (GRU) neural networks. Journal of Hydrology, 612, 128262.</p>
+<p>Hall, D. K., et al. (2024). Snowfall Replenishes Groundwater Loss in the Great Basin of the Western United States, but Cannot Compensate for Increasing Aridification. Geophysical Research Letters, 51, e2023GL107913.</p>
+<p>Hasani, R., Lechner, M., Amini, A., Rus, D., &amp; Grosu, R. (2021). Liquid Time-constant Networks. Proceedings of the AAAI Conference on Artificial Intelligence, 35(9), 7657-7666.</p>
+<p>Hasani, R., Lechner, M., Amini, A., Liebenwein, L., Ray, A., Tschaikowski, M., Teschl, G., &amp; Rus, D. (2022). Closed-form continuous-time neural networks. Nature Machine Intelligence, 4, 992-1003.</p>
+<p>Huang, G.-B., Zhu, Q.-Y., &amp; Siew, C.-K. (2006). Extreme learning machine: Theory and applications. Neurocomputing, 70(1-3), 489-501.</p>
+<p>Jasechko, S., et al. (2024). Rapid groundwater decline and some cases of recovery in aquifers globally. Nature, 625(7996), 715-720.</p>
+<p>Jeong, J., Park, E., Chen, H., Kim, K.-Y., Han, W. S., &amp; Suk, H. (2020). Estimation of groundwater level based on the robust training of recurrent neural networks using corrupted data. Journal of Hydrology, 582, 124512.</p>
+<p>Levy, Z., Glas, R. L., Stagnitta, T. J., &amp; Terry, N. (2025). ARCHI: A new R package for automated imputation of regionally correlated hydrologic records. Groundwater. https://doi.org/10.1111/gwat.13474</p>
+<p>Li, B., et al. (2024). A New GRACE Downscaling Approach for Deriving High-Resolution Groundwater Storage Changes Using Ground-Based Scaling Factors. Water Resources Research, 60, e2023WR035210.</p>
+<p>Li, Y., et al. (2025). Predicting regional-scale groundwater levels at high spatial resolution using spatial Random Forest models. International Journal of Applied Earth Observation and Geoinformation.</p>
+<p>Lin, H., et al. (2022). Time series-based groundwater level forecasting using gated recurrent unit deep neural networks. Engineering Applications of Computational Fluid Mechanics, 16(1), 1655-1672.</p>
+<p>Long, D., et al. (2014). Drought and flood monitoring for a large karst plateau in Southwest China using extended GRACE data. Remote Sensing of Environment, 155, 145-160.</p>
+<p>Ma, G., et al. (2024). Improved Estimates of Sub-Regional Groundwater Storage Anomaly Using Coordinated Forward Modeling. Water Resources Research, 60(7), e2023WR036105.</p>
+<p>Null, S. E. &amp; Wurtsbaugh, W. A. (2020). Water Development, Consumptive Water Uses, and Great Salt Lake. In Baxter, B. K. &amp; Butler, J. K. (Eds.), Great Salt Lake Biology, Springer, pp. 1-30.</p>
+<p>Ramirez, S. G., Williams, G. P., &amp; Jones, N. L. (2022). Groundwater Level Data Imputation Using Machine Learning and Remote Earth Observations Using Inductive Bias. Remote Sensing, 14, 5509. https://doi.org/10.3390/rs14215509</p>
+<p>Ramirez, S. G., Williams, G. P., Jones, N. L., Ames, D. P., &amp; Radebaugh, J. (2023). Improving Groundwater Imputation through Iterative Refinement Using Spatial and Temporal Correlations from In Situ Data with Machine Learning. Water, 15, 1236. https://doi.org/10.3390/w15061236</p>
+<p>Rateb, A. &amp; Herring, T. A. (2020). Comparison of Groundwater Storage Changes From GRACE Satellites With Monitoring and Modeling of Major U.S. Aquifers. Water Resources Research, 56(12), e2020WR027556.</p>
+<p>Rodell, M., et al. (2004). The global land data assimilation system. Bulletin of the American Meteorological Society, 85(3), 381-394.</p>
+<p>Scanlon, B. R., et al. (2023). Global water resources and the role of groundwater in a resilient water future. Nature Reviews Earth &amp; Environment, 4, 87-101.</p>
+<p>Sharma, Y. K., Kim, S., &amp; Tayerani Charmchi, A. S. (2024). Strategic imputation of groundwater data using machine learning: Insights from diverse aquifers in the Chao-Phraya River Basin. Groundwater for Sustainable Development, 27, 101300.</p>
+<p>Shepard, D., Jones, N. L., &amp; Williams, G. P. (2025). Application of the Groundwater Data Mapper Tool to Assess Storage Changes in a Groundwater-Driven Basin in the Klamath Watershed, Oregon, USA. Hydrology, 12(6), 140. https://doi.org/10.3390/hydrology12060140</p>
+<p>Stevens, M. D., Ramirez, S. G., Martin, E.-M. H., Jones, N. L., Williams, G. P., Adams, K. H., Ames, D. P., &amp; Pulla, S. T. (2025). Groundwater Storage Loss in the Central Valley Analysis Using a Novel Method based on In Situ Data Compared to GRACE-Derived Data. Environmental Modelling &amp; Software, 186, 106368. https://doi.org/10.1016/j.envsoft.2025.106368</p>
+<p>Tapley, B. D., Bettadpur, S., Ries, J. C., Thompson, P. F., &amp; Watkins, M. M. (2004). GRACE measurements of mass variability in the Earth system. Science, 305(5683), 503-505.</p>
+<p>Tripathi, V., Groh, A., Horwath, M., &amp; Ramsankaran, R. (2022). Scaling methods of leakage correction in GRACE mass change estimates revisited for the complex hydro-climatic setting of the Indus Basin. Hydrology and Earth System Sciences, 26, 4515-4535.</p>
+<p>Vishwakarma, B. D., Devaraju, B., &amp; Sneeuw, N. (2018). What is the spatial resolution of GRACE satellite products for hydrology? Remote Sensing, 10(6), 852.</p>
+<p>Watkins, M. M., Wiese, D. N., Yuan, D.-N., Boening, C., &amp; Landerer, F. W. (2015). Improved methods for observing Earth's time variable mass distribution with GRACE using spherical cap mascons. Journal of Geophysical Research: Solid Earth, 120(4), 2648-2671.</p>
+<p>Young, Z., Kreemer, C., &amp; Blewitt, G. (2021). GPS Constraints on Drought-Induced Groundwater Loss Around Great Salt Lake, Utah, With Implications for Seismicity Modulation. Journal of Geophysical Research: Solid Earth, 126, e2021JB022020.</p>
+<p>Zamora, H. &amp; Inkenbrandt, P. (2024). Estimate of groundwater flow and salinity contribution to the Great Salt Lake using groundwater levels and spatial analysis. Geosites, 51, 1-24.</p></body></html>
