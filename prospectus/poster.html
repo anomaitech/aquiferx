@@ -103,8 +103,8 @@
 
 <div class="panel" style="flex:0 0 auto;">
   <h2>The Problem</h2>
-  <p>Groundwater monitoring wells are the primary source of water-table elevation (WTE) data, yet public databases worldwide suffer from <b class="red">long temporal gaps</b> -- periods of months to years with no measurements. Jasechko et al. (2024) analyzed 170,000 wells across 1,693 aquifer systems and found rapid declines in 30%, but most records are too incomplete for trend analysis.</p>
-  <p><b class="blue">This work introduces the first framework that jointly exploits spatial cross-well correlations and continuous-time temporal dynamics</b> to reconstruct groundwater records with multi-year gaps.</p>
+  <p>Groundwater monitoring wells are the primary source of water-table elevation (WTE) data, yet public databases worldwide suffer from <b class="red">long temporal gaps</b> -- periods of months to years with no measurements. Jasechko et al. (2024) analyzed 170,000 wells across 1,693 aquifer systems on six continents and found that 30% exhibit accelerating decline, but most records are too incomplete for reliable trend analysis.</p>
+  <p>Existing imputation methods operate in either the spatial domain (donor regression, matrix completion) or the temporal domain (ELM, LSTM, GRU) but not both simultaneously. <b class="blue">This work presents a hybrid framework that jointly exploits spatial cross-well correlations and continuous-time temporal dynamics</b> to reconstruct groundwater records with multi-year gaps.</p>
 
   <!-- Gap illustration -->
   <svg viewBox="0 0 600 175" style="width:100%; margin:0.06in 0;">
@@ -212,7 +212,7 @@
     <li><b>Irregular observations</b> at any cadence (daily, monthly, quarterly)</li>
     <li><b>GLDAS auxiliary data</b> -- globally available satellite-derived soil moisture (no local calibration needed)</li>
   </ul>
-  <p>All hyperparameters are auto-optimized per well. No manual tuning, no basin-specific training. Validated on the Great Salt Lake Basin (592 wells, 93,000 km&sup2;, 24-year record) but designed for any monitoring network worldwide.</p>
+  <p>All hyperparameters are auto-optimized per well. No manual tuning, no basin-specific training required. Initially validated on the Great Salt Lake Basin (592 wells, 93,000 km&sup2;, 24-year record) with planned extension to basins in Sub-Saharan Africa and South America to demonstrate transferability across diverse hydrogeological and climatic settings.</p>
 </div>
 
 </div>
@@ -222,7 +222,7 @@
 
 <div class="panel" style="flex:0 0 auto;">
   <h2>Cross-Validation Results</h2>
-  <p style="font-size:0.16in; color:#666;">592 wells, Great Salt Lake Basin, 2000-2023. Most complete well used as target.</p>
+  <p style="font-size:0.16in; color:#666;">Initial validation: 592 wells, Great Salt Lake Basin, 2000-2023</p>
 
   <p style="font-size:0.2in; margin-top:0.08in;"><b class="blue">Random Missing Data</b> <span style="font-size:0.16in; color:#888;">(50 trials per level)</span></p>
   <table class="tbl">
@@ -259,13 +259,13 @@
 <div class="panel" style="flex:1;">
   <h2>Conclusions</h2>
   <ul>
-    <li><b class="blue">First hybrid spatial-temporal imputation framework</b> for groundwater: matrix completion exploits cross-well correlations while liquid neural networks capture continuous-time dynamics conditioned on climate auxiliary data</li>
-    <li><b>KGE &gt; 0.84</b> under random data loss up to 50%; <b>KGE &gt; 0.78</b> for consecutive gaps up to 5 years -- substantially exceeding prior ELM-based methods that degrade below KGE 0.3 for gaps beyond 2 years</li>
+    <li><b class="blue">Hybrid spatial-temporal imputation framework</b> for groundwater: matrix completion exploits cross-well correlations while liquid neural networks capture continuous-time dynamics conditioned on climate auxiliary data -- a coupling not previously explored in the groundwater literature</li>
+    <li><b>KGE &gt; 0.84</b> under random data loss up to 50%; <b>KGE &gt; 0.78</b> for consecutive gaps up to 5 years, with RMSE consistently below 3 ft across all scenarios</li>
     <li><b>PCHIP small-gap filling</b> improves the full pipeline by 10-19% KGE by providing denser donor correlations for the MC stage</li>
-    <li><b>General-purpose:</b> Requires only well locations, irregular observations, and globally available GLDAS data. No basin-specific calibration. Applicable to any monitoring network worldwide</li>
+    <li><b>General-purpose:</b> Requires only well locations, irregular observations, and globally available GLDAS data. No basin-specific calibration. Validated on GSLB with planned global extension</li>
   </ul>
   <p style="font-size:0.155in; margin-top:0.12in; padding-top:0.08in; border-top:1.5px solid #ddd; color:#666;">
-    <b>Key references:</b> Hasani et al. (2022) <i>Nat. Mach. Intell.</i>; Candes &amp; Recht (2009) <i>Found. Comput. Math.</i>; Evans et al. (2020) <i>Remote Sens.</i>; Ramirez et al. (2023) <i>Water</i>; Sharma et al. (2024) <i>Groundw. Sustain. Dev.</i>
+    <b>Key references:</b> Hasani et al. (2022) <i>Nat. Mach. Intell.</i>; Candes &amp; Recht (2009) <i>Found. Comput. Math.</i>; Evans et al. (2020) <i>Remote Sens.</i>; Ramirez et al. (2023) <i>Water</i>; Levy et al. (2025) <i>Groundwater</i>; Sharma et al. (2024) <i>Groundw. Sustain. Dev.</i>
   </p>
 </div>
 
