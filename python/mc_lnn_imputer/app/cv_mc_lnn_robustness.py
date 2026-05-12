@@ -222,12 +222,25 @@ def prefill_small_gaps_all(raw_obs, gap_size=24, pad_size=6):
 # ─── Imputation helpers ──────────────────────────────────────────────────────
 
 def impute_timeline(timeline, params, seed):
+    # Compute observed range for output clamping
+    obs_vals = [d.observed for d in timeline if d.observed is not None]
+    if len(obs_vals) >= 2:
+        o_min, o_max = min(obs_vals), max(obs_vals)
+        o_range = o_max - o_min
+        clamp_margin = max(o_range * 0.3, 2.0)
+    else:
+        o_min, o_max, clamp_margin = -1e18, 1e18, 1e18
+
     with redirect_stdout(io.StringIO()):
         best = optimize_lnn_params(timeline, params, mode="projection", rng=np.random.default_rng(seed))
         best_result = None
         best_kge = float("-inf")
         for it in range(5):
             res = run_lnn_simulation(timeline, best, rng=np.random.default_rng(seed + it))
+            # Clamp LNN output to observed range
+            for r in res:
+                if r.imputed is not None:
+                    r.imputed = max(o_min - clamp_margin, min(o_max + clamp_margin, r.imputed))
             obs = [d.observed for d in timeline if d.observed is not None]
             pred = [res[i].imputed for i, d in enumerate(timeline) if d.observed is not None and res[i].imputed is not None]
             if obs and pred and len(obs) == len(pred):
@@ -235,7 +248,12 @@ def impute_timeline(timeline, params, seed):
                 if np.isfinite(k) and k > best_kge:
                     best_kge = k
                     best_result = res
-        return best_result if best_result is not None else run_lnn_simulation(timeline, best, rng=np.random.default_rng(seed))
+        result = best_result if best_result is not None else run_lnn_simulation(timeline, best, rng=np.random.default_rng(seed))
+        # Final clamp
+        for r in result:
+            if r.imputed is not None:
+                r.imputed = max(o_min - clamp_margin, min(o_max + clamp_margin, r.imputed))
+        return result
 
 
 # ─── ARCHI + MC ───────────────────────────────────────────────────────────────
@@ -382,12 +400,33 @@ def _matrix_completion_archi_init(target_series, target_aux, donor_obs, donors, 
             X[di, :] /= abs(donor["r"])
 
     pred = X[0, :] * rstds[0] + rmeans[0]
+
+    # MOVE.1 with safeguard for low/high variance wells
     if len(target_obs_idx) >= 3:
         ov = M_raw[0, target_obs_idx]
         mv = pred[target_obs_idx]
         om, os_ = np.mean(ov), max(np.std(ov), 1e-10)
         mm, ms = np.mean(mv), max(np.std(mv), 1e-10)
-        pred = (pred - mm) / ms * os_ + om
+        var_ratio = os_ / ms
+        if 0.1 < var_ratio < 10:
+            pred = (pred - mm) / ms * os_ + om
+
+    # Clamp to observed range + margin
+    if len(target_obs_idx) >= 2:
+        obs_vals = M_raw[0, target_obs_idx]
+        obs_min, obs_max = float(np.min(obs_vals)), float(np.max(obs_vals))
+        obs_range = obs_max - obs_min
+        margin = max(obs_range * 0.2, 1.0)
+        pred = np.clip(pred, obs_min - margin, obs_max + margin)
+
+    # Quality check: if MC RMSE on observed is worse than 1.5x std, blend with ARCHI
+    if len(target_obs_idx) > 0:
+        mc_rmse = float(np.sqrt(np.mean((pred[target_obs_idx] - M_raw[0, target_obs_idx])**2)))
+        if mc_rmse > rstds[0] * 1.5 and archi_preds:
+            for t in range(n_times):
+                if t in archi_preds and np.isfinite(archi_preds[t]):
+                    pred[t] = 0.3 * pred[t] + 0.7 * archi_preds[t]
+
     return {t: float(pred[t]) for t in range(n_times)}
 
 
@@ -402,12 +441,24 @@ def run_mc_lnn_fold(target_id, mod_target, donor_obs_filled, months, aux_lk, lat
         return impute_timeline(tl, params, seed)
 
     mc_preds = _matrix_completion_archi_init(mod_target, target_aux, donor_obs_filled, donors, archi_preds)
+
     tl = build_aux_timeline(mod_target, target_id, months, aux_lk, lat, lon, add_seasonal=True)
+
+    # Clamp MC placeholders to observed range
+    all_obs = [v for v in mod_target if v is not None]
+    if all_obs:
+        obs_min, obs_max = min(all_obs), max(all_obs)
+        obs_range = obs_max - obs_min
+        clamp_margin = max(obs_range * 0.3, 2.0)
+        clamp_lo, clamp_hi = obs_min - clamp_margin, obs_max + clamp_margin
+    else:
+        clamp_lo, clamp_hi = -np.inf, np.inf
 
     for i in range(len(tl)):
         if mod_target[i] is None and i in mc_preds and np.isfinite(mc_preds[i]):
+            val = max(clamp_lo, min(clamp_hi, float(mc_preds[i])))
             tl[i] = DataPoint(
-                time=tl[i].time, observed=None, imputed=float(mc_preds[i]),
+                time=tl[i].time, observed=None, imputed=val,
                 instance_id=tl[i].instance_id, auxiliaries=tl[i].auxiliaries,
                 date_label=tl[i].date_label, latitude=tl[i].latitude, longitude=tl[i].longitude,
             )
