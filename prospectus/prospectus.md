@@ -19,8 +19,8 @@ Third, satellite gravimetry from GRACE/GRACE-FO (Tapley et al., 2004) provides t
 These three barriers form a chain: incomplete well records limit the quality of spatial fields, which in turn limit the fidelity of satellite-derived corrections. This dissertation addresses all three barriers in sequence through three papers, each building on the outputs of the previous:
 
 1. **Paper 1** (completed) establishes baseline groundwater storage estimates for the Great Salt Lake Basin using multiple independent methods, revealing the sensitivity of GRACE-derived estimates to leakage handling and motivating the need for improved imputation.
-2. **Paper 2** develops a novel hybrid imputation framework coupling Matrix Completion with Liquid Neural Networks (MC+LNN) that jointly exploits spatial cross-well correlations and continuous-time temporal dynamics -- the first such coupling in the groundwater literature.
-3. **Paper 3** applies the imputed records from Paper 2 to produce spatially continuous groundwater fields via EOF-based interpolation, and uses those fields to derive the first pixel-wise GRACE leakage correction grid calibrated against spatially complete in situ data.
+2. **Paper 2** develops a novel hybrid imputation framework coupling Matrix Completion with Liquid Neural Networks (MC+LNN) that jointly exploits spatial cross-well correlations and continuous-time temporal dynamics -- a coupling not previously explored in the groundwater literature.
+3. **Paper 3** applies the imputed records from Paper 2 to produce spatially continuous groundwater fields via EOF-based interpolation, and uses those fields to derive a pixel-wise GRACE leakage correction grid calibrated against spatially complete in situ data.
 
 The Great Salt Lake Basin (GSLB) serves as the initial validation site, chosen for its dense USGS monitoring network (592 eligible wells), heterogeneous hydrogeology spanning four states, and concentrated anthropogenic pumping along the Wasatch Front. However, the methods are designed to be general-purpose: the imputation framework requires only well locations, irregular observations, and globally available GLDAS auxiliary data, with all hyperparameters auto-optimized per well. Validation on additional basins across diverse hydrogeological and climatic settings -- including sites in Sub-Saharan Africa and South America where monitoring networks are sparser -- is planned to demonstrate transferability.
 
@@ -38,7 +38,7 @@ A common limitation across these approaches is that they treat each well's imput
 
 Matrix completion offers a fundamentally different perspective by arranging all well records as a partially observed matrix and exploiting low-rank structure to infer missing entries from cross-well correlations (Candes and Recht, 2009). Sharma, Kim, and Tayerani Charmchi (2024) evaluated SoftImpute for groundwater levels in the Chao-Phraya River Basin, finding it excels in sparse networks -- but treated it as a standalone method without temporal coupling. On the temporal side, Liquid Neural Networks with Closed-form Continuous-depth cells (Hasani et al., 2022) model dynamics as continuous-time ODEs, naturally accommodating irregular sampling without resampling -- a property uniquely suited to groundwater monitoring data.
 
-**No prior work has combined matrix completion with continuous-time neural networks for groundwater imputation.** This dissertation proposes a coupled MC+LNN framework in which matrix completion provides spatially informed initial estimates by exploiting cross-well correlations, and the LNN refines those estimates using continuous-time dynamics conditioned on auxiliary climatic forcings. The coupling is complementary: MC handles the spatial dimension, LNN handles the temporal dimension.
+**To the authors' knowledge, matrix completion has not previously been coupled with continuous-time neural networks for groundwater imputation.** This dissertation proposes a coupled MC+LNN framework in which matrix completion provides spatially informed initial estimates by exploiting cross-well correlations, and the LNN refines those estimates using continuous-time dynamics conditioned on auxiliary climatic forcings. The coupling is complementary: MC handles the spatial dimension, LNN handles the temporal dimension.
 
 #### 1.2.2 Spatial Interpolation of Groundwater Levels
 
@@ -60,7 +60,7 @@ The three objectives are sequential -- each builds on the outputs of the previou
 
 **Objective 2 (Paper 2).** Develop and validate a general-purpose hybrid imputation framework for sparse, irregular groundwater-level time series that couples PCHIP for short gaps with Matrix Completion + Liquid Neural Networks (MC+LNN) for long gaps, using globally available auxiliary climatic forcings. Validate initially on the GSLB, with planned extension to basins in Africa and South America.
 
-**Objective 3 (Paper 3).** Apply the imputation framework from Paper 2 to produce spatially continuous groundwater-level fields via spatial trend decomposition and EOF analysis, and use those fields to derive the first pixel-wise GRACE leakage correction grid calibrated against spatially complete in situ data. Benchmark against independent mascon-based estimates.
+**Objective 3 (Paper 3).** Apply the imputation framework from Paper 2 to produce spatially continuous groundwater-level fields via spatial trend decomposition and EOF analysis, and use those fields to derive a pixel-wise GRACE leakage correction grid calibrated against spatially complete in situ data. Benchmark against independent mascon-based estimates.
 
 ---
 
@@ -88,7 +88,7 @@ All methods identified two major drawdowns (2012-2016, 2019-2022). The leakage-c
 
 ### 3.1 Objective
 
-To develop, validate, and benchmark a general-purpose hybrid imputation framework that, for the first time, jointly exploits spatial cross-well correlations (via matrix completion) and continuous-time temporal dynamics (via liquid neural networks) for reconstructing groundwater-level records with multi-year gaps.
+To develop, validate, and benchmark a general-purpose hybrid imputation framework that jointly exploits spatial cross-well correlations (via matrix completion) and continuous-time temporal dynamics (via liquid neural networks) for reconstructing groundwater-level records with multi-year gaps.
 
 ### 3.2 Methods
 
@@ -127,7 +127,7 @@ KGE remains above 0.84 across all random-missing rates and above 0.78 for all co
 
 ### 4.1 Objective
 
-To produce spatially continuous groundwater-level fields from the imputed records of Paper 2 via EOF-based interpolation, and to use those fields to derive the first pixel-wise GRACE leakage correction grid calibrated against spatially complete in situ data.
+To produce spatially continuous groundwater-level fields from the imputed records of Paper 2 via EOF-based interpolation, and to use those fields to derive a pixel-wise GRACE leakage correction grid calibrated against spatially complete in situ data.
 
 ### 4.2 Methods
 
