@@ -675,7 +675,7 @@ function mcSoftImpute(
   // Denormalize
   const pred = X[0].map(v => v * rstds[0] + rmeans[0]);
 
-  // MOVE.1 variance-preserving bias correction
+  // MOVE.1 variance-preserving bias correction (with safeguards)
   if (targetObsIdx.length >= 3) {
     const ov = targetObsIdx.map(t => MRaw[0][t]);
     const mv = targetObsIdx.map(t => pred[t]);
@@ -683,7 +683,53 @@ function mcSoftImpute(
     const os = Math.max(Math.sqrt(ov.reduce((a, v) => a + (v - om) ** 2, 0) / (ov.length - 1)), 1e-10);
     const mm = mv.reduce((a, b) => a + b, 0) / mv.length;
     const ms = Math.max(Math.sqrt(mv.reduce((a, v) => a + (v - mm) ** 2, 0) / (mv.length - 1)), 1e-10);
-    for (let t = 0; t < nTimes; t++) pred[t] = om + (os / ms) * (pred[t] - mm);
+    // Safeguard: skip MOVE.1 if variance ratio is extreme (low-variance wells)
+    const varRatio = os / ms;
+    if (varRatio > 0.1 && varRatio < 10) {
+      for (let t = 0; t < nTimes; t++) pred[t] = om + varRatio * (pred[t] - mm);
+    }
+  }
+
+  // Clamp predictions to observed range (with 20% margin)
+  const obsVals = targetObsIdx.map(t => MRaw[0][t]);
+  if (obsVals.length >= 2) {
+    const obsMin = Math.min(...obsVals);
+    const obsMax = Math.max(...obsVals);
+    const obsRange = obsMax - obsMin;
+    const margin = Math.max(obsRange * 0.2, 1.0); // at least 1 unit margin
+    const clampLo = obsMin - margin;
+    const clampHi = obsMax + margin;
+    for (let t = 0; t < nTimes; t++) {
+      if (pred[t] < clampLo) pred[t] = clampLo;
+      if (pred[t] > clampHi) pred[t] = clampHi;
+    }
+  }
+
+  // Quality check: compute MC RMSE on observed points
+  let mcRmseOnObs = 0;
+  if (targetObsIdx.length > 0) {
+    let sumSq = 0;
+    for (const t of targetObsIdx) sumSq += (pred[t] - MRaw[0][t]) ** 2;
+    mcRmseOnObs = Math.sqrt(sumSq / targetObsIdx.length);
+  }
+
+  // If MC reconstruction is poor on observed points, fall back to ARCHI predictions
+  const obsStd = rstds[0];
+  if (mcRmseOnObs > obsStd * 1.5 && archiPreds.size > 0) {
+    // MC is reconstructing observed points poorly — blend with ARCHI
+    const result = new Map<number, number>();
+    for (let t = 0; t < nTimes; t++) {
+      if (isFinite(pred[t])) {
+        const archiVal = archiPreds.get(t);
+        if (archiVal !== undefined && isFinite(archiVal)) {
+          // Blend: trust ARCHI more when MC is unreliable
+          result.set(t, 0.3 * pred[t] + 0.7 * archiVal);
+        } else {
+          result.set(t, pred[t]);
+        }
+      }
+    }
+    return result;
   }
 
   const result = new Map<number, number>();
@@ -982,9 +1028,22 @@ export async function runMcLnnImputation(
     // Identify which are real observations vs MC placeholders
     const realObs: (number | null)[] = [...modTarget];
     const mcPlaceholders = new Map<number, number>();
+
+    // Compute observed range for clamping placeholders
+    const allObs: number[] = [];
+    for (let t = 0; t < nTimes; t++) if (modTarget[t] !== null) allObs.push(modTarget[t]!);
+    const obsMin = allObs.length > 0 ? Math.min(...allObs) : -Infinity;
+    const obsMax = allObs.length > 0 ? Math.max(...allObs) : Infinity;
+    const obsRange = obsMax - obsMin;
+    const placeholderMargin = Math.max(obsRange * 0.3, 2.0);
+
     for (let t = 0; t < nTimes; t++) {
       if (modTarget[t] === null && mcPreds.has(t) && isFinite(mcPreds.get(t)!)) {
-        mcPlaceholders.set(t, mcPreds.get(t)!);
+        // Clamp MC placeholder to observed range + margin
+        let val = mcPreds.get(t)!;
+        val = Math.max(val, obsMin - placeholderMargin);
+        val = Math.min(val, obsMax + placeholderMargin);
+        mcPlaceholders.set(t, val);
       }
     }
 

@@ -1,0 +1,26 @@
+GSLB Long-Gap Browser Imputer Benchmark
+Date overlap: 2000-01-01 to 2023-12-01 (2024 unavailable in bundled observed/GLDAS data)
+Top wells by monthly coverage: 415703112514501(202), 414236112101201(199), 411544111461001(197), 411348112013601(196), 414411112543701(196)
+Repeats per duration: 5
+Durations (years): 1, 2, 3, 4, 5
+
+1y long gap
+Existing PCHIP + ELM: n=196, R2=0.9997, RMSE=4.5940, MAE=2.8681, MSE=21.1046
+Browser MC + LNN:    n=196, R2=0.9998, RMSE=3.3643, MAE=2.2067, MSE=11.3183
+
+2y long gap
+Existing PCHIP + ELM: n=394, R2=0.9998, RMSE=3.2795, MAE=1.9872, MSE=10.7553
+Browser MC + LNN:    n=394, R2=0.9998, RMSE=3.5782, MAE=2.5223, MSE=12.8036
+
+3y long gap
+Existing PCHIP + ELM: n=620, R2=0.9999, RMSE=3.2588, MAE=2.1086, MSE=10.6197
+Browser MC + LNN:    n=620, R2=0.9987, RMSE=9.6217, MAE=5.7773, MSE=92.5765
+
+4y long gap
+Existing PCHIP + ELM: n=825, R2=0.9998, RMSE=3.5686, MAE=2.3014, MSE=12.7349
+Browser MC + LNN:    n=825, R2=0.9997, RMSE=4.6448, MAE=3.3884, MSE=21.5741
+
+5y long gap
+Existing PCHIP + ELM: n=1032, R2=0.9998, RMSE=3.3744, MAE=2.2101, MSE=11.3867
+Browser MC + LNN:    n=1032, R2=0.9990, RMSE=8.4658, MAE=5.1830, MSE=71.6704
+

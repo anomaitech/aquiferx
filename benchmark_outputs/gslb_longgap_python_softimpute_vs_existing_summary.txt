@@ -1,0 +1,23 @@
+GSLB Long-Gap Benchmark: Existing AquiferX vs Validated Python SoftImpute MC+LNN
+Date overlap: 2000-01-01 to 2023-12-01 (2024 unavailable in bundled observed/GLDAS data)
+
+1y long gap
+Existing PCHIP + ELM: rows=10, mean_R2=-0.6613, mean_RMSE=3.4811
+Validated Python SoftImpute MC+LNN: rows=10, mean_R2=-0.0281, mean_RMSE=2.7021, mean_MAE=2.4294, mean_MSE=12.6949
+
+2y long gap
+Existing PCHIP + ELM: rows=10, mean_R2=-0.1147, mean_RMSE=3.0126
+Validated Python SoftImpute MC+LNN: rows=10, mean_R2=-1.0888, mean_RMSE=2.3484, mean_MAE=2.0215, mean_MSE=7.4183
+
+3y long gap
+Existing PCHIP + ELM: rows=10, mean_R2=-0.8919, mean_RMSE=2.4827
+Validated Python SoftImpute MC+LNN: rows=10, mean_R2=-1.5326, mean_RMSE=2.3380, mean_MAE=2.0370, mean_MSE=7.2520
+
+4y long gap
+Existing PCHIP + ELM: rows=10, mean_R2=-0.2382, mean_RMSE=2.9547
+Validated Python SoftImpute MC+LNN: rows=10, mean_R2=-0.6789, mean_RMSE=2.6138, mean_MAE=2.2194, mean_MSE=9.0719
+
+5y long gap
+Existing PCHIP + ELM: rows=10, mean_R2=-0.3572, mean_RMSE=2.6430
+Validated Python SoftImpute MC+LNN: rows=10, mean_R2=-0.2422, mean_RMSE=2.4217, mean_MAE=2.0387, mean_MSE=7.9022
+

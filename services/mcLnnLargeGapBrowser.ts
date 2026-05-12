@@ -229,8 +229,26 @@ function matrixCompletionArchiInit(
     const os = Math.max(std(ov), 1e-10);
     const mm = mean(mv);
     const ms = Math.max(std(mv), 1e-10);
-    for (let t = 0; t < pred.length; t++) pred[t] = ((pred[t] - mm) / ms) * os + om;
+    // Safeguard: skip MOVE.1 when variance ratio is extreme (low-variance wells)
+    const varRatio = os / ms;
+    if (varRatio > 0.1 && varRatio < 10) {
+      for (let t = 0; t < pred.length; t++) pred[t] = ((pred[t] - mm) / ms) * os + om;
+    }
   }
+
+  // Clamp predictions to observed range + margin
+  if (targetObsIdx.length >= 2) {
+    const obsVals = targetObsIdx.map(i => MRaw[0][i]);
+    const obsMin = Math.min(...obsVals);
+    const obsMax = Math.max(...obsVals);
+    const obsRange = obsMax - obsMin;
+    const margin = Math.max(obsRange * 0.2, 1.0);
+    for (let t = 0; t < pred.length; t++) {
+      pred[t] = Math.max(pred[t], obsMin - margin);
+      pred[t] = Math.min(pred[t], obsMax + margin);
+    }
+  }
+
   const out: Record<number, number> = {};
   pred.forEach((v, t) => { out[t] = v; });
   return out;
@@ -270,6 +288,14 @@ export function runExactMcLnnSinglePass(input: BrowserMcSinglePassInput, targetI
     input.softImpute,
     targetInitPreds,
   );
-  const enriched = input.targetSeries.map((v, i) => (v != null ? v : (Number.isFinite(mcPreds[i]) ? mcPreds[i] : null)));
+  // Clamp MC placeholders to observed range before passing to LNN
+  const allObs: number[] = input.targetSeries.filter((v): v is number => v != null);
+  const clampLo = allObs.length > 0 ? Math.min(...allObs) - Math.max((Math.max(...allObs) - Math.min(...allObs)) * 0.3, 2.0) : -Infinity;
+  const clampHi = allObs.length > 0 ? Math.max(...allObs) + Math.max((Math.max(...allObs) - Math.min(...allObs)) * 0.3, 2.0) : Infinity;
+  const enriched = input.targetSeries.map((v, i) => {
+    if (v != null) return v;
+    if (!Number.isFinite(mcPreds[i])) return null;
+    return Math.max(clampLo, Math.min(clampHi, mcPreds[i]));
+  });
   return runExactLnnCfcAux(buildAuxTimeline(enriched, input.monthLabels, input.auxByMonth), input.lnnParams).points;
 }

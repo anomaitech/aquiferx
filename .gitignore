@@ -34,4 +34,3 @@ npm-debug.log*
 python/mc_lnn_imputer/output/*.csv
 python/mc_lnn_imputer/output/*.json
 python/mc_lnn_imputer/output/*.txt
-benchmark_outputs/

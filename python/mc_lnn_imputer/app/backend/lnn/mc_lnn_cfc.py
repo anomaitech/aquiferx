@@ -314,14 +314,36 @@ def _matrix_completion_archi_init(
         if abs(di['r']) > 1e-10:
             X[di_idx + 1, :] /= abs(di['r'])
 
-    # De-normalize + bias correct
+    # De-normalize + bias correct (with safeguards)
     pred = X[0, :] * rstds[0] + rmeans[0]
     if len(t_obs_idx) >= 3:
         ov = M_raw[0, t_obs_idx]
         mv = pred[t_obs_idx]
         om, ost = np.mean(ov), max(np.std(ov), 1e-10)
         mm, mst = np.mean(mv), max(np.std(mv), 1e-10)
-        pred = (pred - mm) / mst * ost + om
+        # Safeguard: skip MOVE.1 if variance ratio is extreme
+        var_ratio = ost / mst
+        if 0.1 < var_ratio < 10:
+            pred = (pred - mm) / mst * ost + om
+
+    # Clamp to observed range (with margin)
+    if len(t_obs_idx) >= 2:
+        obs_vals = M_raw[0, t_obs_idx]
+        obs_min, obs_max = float(np.min(obs_vals)), float(np.max(obs_vals))
+        obs_range = obs_max - obs_min
+        margin = max(obs_range * 0.2, 1.0)
+        pred = np.clip(pred, obs_min - margin, obs_max + margin)
+
+    # Quality check: if MC reconstruction error on observed points is poor,
+    # blend with ARCHI predictions
+    if len(t_obs_idx) > 0:
+        mc_rmse_obs = float(np.sqrt(np.mean((pred[t_obs_idx] - M_raw[0, t_obs_idx]) ** 2)))
+        if mc_rmse_obs > rstds[0] * 1.5 and archi_preds:
+            # MC is unreliable — blend with ARCHI
+            for t in range(n_times):
+                ft = float(t)
+                if ft in archi_preds and np.isfinite(archi_preds[ft]):
+                    pred[t] = 0.3 * pred[t] + 0.7 * archi_preds[ft]
 
     print(f"  [MC+LNN Phase 2] MC: rank={best_k}, "
           f"{sum(~np.isnan(M_raw[0,:]))} target obs + "
