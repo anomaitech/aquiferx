@@ -147,7 +147,7 @@ Leave-one-out cross-validation on 30 wells yields interpolation RMSE of 32.3 ft,
 
 | Period | Activity |
 |---|---|
-| May 2026 | Paper 1 submitted to journal; Paper 2 method development and validation complete |
+| May 2026 | Paper 1 submitted to journal; Paper 2 method development in progress, validation ongoing |
 | Jun-Aug 2026 | Paper 2 manuscript drafting; begin cross-basin validation (Africa, South America sites) |
 | Sep 2026 | Paper 2 submission |
 | Sep-Dec 2026 | Paper 3 gridded Lf calibration, covariate propagation, sensitivity analyses |
