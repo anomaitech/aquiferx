@@ -20,15 +20,15 @@ The Great Salt Lake Basin (GSLB) serves as the initial validation site, chosen f
 
 ### 1.2 Specific Objectives
 
-**Objective 1 (Paper 1).** Quantify multi-decadal groundwater storage change in the GSLB (2002-2024) by integrating GRACE-derived, GLDAS-derived, and in situ estimates within a unified framework. Identify the methodological sensitivity to surface-water inclusion and GRACE leakage correction that motivates the spatially distributed approach of Paper 3. *(Submitted to journal.)*
+**Multi-Method Groundwater Storage Estimation (Paper 1).** Quantify multi-decadal groundwater storage change in the GSLB (2002-2024) by integrating GRACE-derived, GLDAS-derived, and in situ estimates within a unified framework. Identify the methodological sensitivity to surface-water inclusion and GRACE leakage correction that motivates the spatially distributed approach of Paper 3. *(Submitted to journal.)*
 
-**Objective 2 (Paper 2).** Develop and validate a general-purpose hybrid imputation framework for sparse, irregular groundwater-level time series that couples PCHIP for short gaps with Matrix Completion + Liquid Neural Networks (MC+LNN) for long gaps, using globally available auxiliary climatic forcings.
+**Hybrid Spatiotemporal Imputation (Paper 2).** Develop and validate a general-purpose hybrid imputation framework for sparse, irregular groundwater-level time series that couples PCHIP for short gaps with Matrix Completion + Liquid Neural Networks (MC+LNN) for long gaps, using globally available auxiliary climatic forcings.
 
-**Objective 3 (Paper 3).** Apply the imputation framework from Paper 2 to produce spatially continuous groundwater-level fields via spatial trend decomposition and EOF analysis, and use those fields to derive a pixel-wise GRACE leakage correction grid calibrated against spatially complete in situ data.
+**EOF Interpolation and Pixel-Wise Leakage Correction (Paper 3).** Apply the imputation framework from Paper 2 to produce spatially continuous groundwater-level fields via spatial trend decomposition and EOF analysis, and use those fields to derive a pixel-wise GRACE leakage correction grid calibrated against spatially complete in situ data.
 
 ---
 
-## 2. Objective 1 (Paper 1)
+## 2. Multi-Method Groundwater Storage Estimation (Paper 1)
 
 ### 2.1 Objective
 
@@ -52,7 +52,7 @@ All methods identified two major drawdowns (2012-2016, 2019-2022). The leakage-c
 
 ---
 
-## 3. Objective 2 (Paper 2)
+## 3. Hybrid Spatiotemporal Imputation via Matrix Completion and Liquid Neural Networks (Paper 2)
 
 ### 3.1 Objective
 
@@ -101,7 +101,7 @@ KGE remains above 0.84 across all random-missing rates and above 0.78 for all co
 
 ---
 
-## 4. Objective 3 (Paper 3)
+## 4. EOF-Based Spatial Interpolation and Pixel-Wise GRACE Leakage Correction (Paper 3)
 
 ### 4.1 Objective
 
