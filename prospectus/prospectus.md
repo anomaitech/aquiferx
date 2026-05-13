@@ -60,7 +60,7 @@ The three objectives are sequential -- each builds on the outputs of the previou
 
 **Objective 2 (Paper 2).** Develop and validate a general-purpose hybrid imputation framework for sparse, irregular groundwater-level time series that couples PCHIP for short gaps with Matrix Completion + Liquid Neural Networks (MC+LNN) for long gaps, using globally available auxiliary climatic forcings. Validate initially on the GSLB, with planned extension to basins in Africa and South America.
 
-**Objective 3 (Paper 3).** Apply the imputation framework from Paper 2 to produce spatially continuous groundwater-level fields via spatial trend decomposition and EOF analysis, and use those fields to derive a pixel-wise GRACE leakage correction grid calibrated against spatially complete in situ data. Benchmark against independent mascon-based estimates.
+**Objective 3 (Paper 3).** Apply the imputation framework from Paper 2 to produce spatially continuous groundwater-level fields via spatial trend decomposition and EOF analysis, and use those fields to derive a pixel-wise GRACE leakage correction grid calibrated against spatially complete in situ data.
 
 ---
 
@@ -135,7 +135,7 @@ To produce spatially continuous groundwater-level fields from the imputed record
 
 **Leakage Correction.** The interpolated fields are converted to volumetric storage anomalies using spatially varying specific yield and aggregated to the 0.5-degree GRACE grid. A pixel-wise leakage factor Lf(phi, lambda) is calibrated against the in situ-derived GWSa. For grid cells lacking sufficient well coverage, Lf is propagated via a covariate-aware model.
 
-**Benchmarking.** The resulting GWSa is compared against mascon-based GWSa (Watkins et al., 2015), which handles leakage structurally rather than empirically. Because all auxiliary terms are identical, any divergence is attributable to leakage handling alone.
+**Validation.** The resulting pixel-wise GWSa is validated against the in situ reconstruction at sub-basin scales and compared with the basin-uniform Lf approach of Paper 1 to quantify the improvement from spatially distributed correction.
 
 ### 4.3 Anticipated Results
 
@@ -151,7 +151,7 @@ Leave-one-out cross-validation on 30 wells yields interpolation RMSE of 32.3 ft,
 | Jun-Aug 2026 | Paper 2 manuscript drafting; begin cross-basin validation (Africa, South America sites) |
 | Sep 2026 | Paper 2 submission |
 | Sep-Dec 2026 | Paper 3 gridded Lf calibration, covariate propagation, sensitivity analyses |
-| Jan-Feb 2027 | Paper 3 results, mascon benchmarking, cross-basin interpolation testing |
+| Jan-Feb 2027 | Paper 3 results, leakage correction validation, cross-basin interpolation testing |
 | Mar 2027 | Paper 3 manuscript drafting |
 | Apr 2027 | Paper 3 submission; dissertation compilation |
 | May-Jun 2027 | Dissertation defense and graduation |

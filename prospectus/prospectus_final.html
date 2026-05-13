@@ -32,7 +32,7 @@
 <p>The three objectives are sequential -- each builds on the outputs of the previous, forming an integrated pipeline from raw observations to satellite-corrected storage estimates:</p>
 <p><strong>Objective 1 (Paper 1).</strong> Quantify multi-decadal groundwater storage change in the GSLB (2002-2024) by integrating GRACE-derived, GLDAS-derived, and in situ estimates within a unified framework. Identify the methodological sensitivity to surface-water inclusion and GRACE leakage correction that motivates the spatially distributed approach of Paper 3. <em>(Completed; submitted to journal.)</em></p>
 <p><strong>Objective 2 (Paper 2).</strong> Develop and validate a general-purpose hybrid imputation framework for sparse, irregular groundwater-level time series that couples PCHIP for short gaps with Matrix Completion + Liquid Neural Networks (MC+LNN) for long gaps, using globally available auxiliary climatic forcings. Validate initially on the GSLB, with planned extension to basins in Africa and South America.</p>
-<p><strong>Objective 3 (Paper 3).</strong> Apply the imputation framework from Paper 2 to produce spatially continuous groundwater-level fields via spatial trend decomposition and EOF analysis, and use those fields to derive a pixel-wise GRACE leakage correction grid calibrated against spatially complete in situ data. Benchmark against independent mascon-based estimates.</p>
+<p><strong>Objective 3 (Paper 3).</strong> Apply the imputation framework from Paper 2 to produce spatially continuous groundwater-level fields via spatial trend decomposition and EOF analysis, and use those fields to derive a pixel-wise GRACE leakage correction grid calibrated against spatially complete in situ data.</p>
 <hr />
 <h2>2. Objective 1 (Paper 1)</h2>
 <h3>2.1 Objective</h3>
@@ -113,7 +113,7 @@
 <h3>4.2 Methods</h3>
 <p><strong>Spatial Interpolation.</strong> The complete imputed dataset (592 wells, 288 months) is interpolated to a regular grid via three stages: (1) a degree-2 polynomial trend surface of temporal-mean WTE as a function of latitude, longitude, and elevation (R-squared = 0.957); (2) EOF decomposition of the detrended residuals via SVD into k temporal modes and spatial loadings; (3) IDW interpolation of the spatial loadings -- not raw values -- to grid cells. This approach guarantees temporal coherence because all timesteps share the same modal structure, and reduces the interpolation problem from 288 values to k small scalars per grid cell.</p>
 <p><strong>Leakage Correction.</strong> The interpolated fields are converted to volumetric storage anomalies using spatially varying specific yield and aggregated to the 0.5-degree GRACE grid. A pixel-wise leakage factor Lf(phi, lambda) is calibrated against the in situ-derived GWSa. For grid cells lacking sufficient well coverage, Lf is propagated via a covariate-aware model.</p>
-<p><strong>Benchmarking.</strong> The resulting GWSa is compared against mascon-based GWSa (Watkins et al., 2015), which handles leakage structurally rather than empirically. Because all auxiliary terms are identical, any divergence is attributable to leakage handling alone.</p>
+<p><strong>Validation.</strong> The resulting pixel-wise GWSa is validated against the in situ reconstruction at sub-basin scales and compared with the basin-uniform Lf approach of Paper 1 to quantify the improvement from spatially distributed correction.</p>
 <h3>4.3 Anticipated Results</h3>
 <p>Leave-one-out cross-validation on 30 wells yields interpolation RMSE of 32.3 ft, a 49% reduction versus IDW (62.9 ft) and 73% versus per-timestep kriging (121.9 ft). The pixel-wise Lf grid is expected to show large factors along the Wasatch Front (concentrated pumping) and near-unity values in the West Desert (diffuse stress), departing substantially from the basin-uniform Lf = 2 of Paper 1 and improving sub-basin agreement with the in situ reconstruction.</p>
 <hr />
@@ -144,7 +144,7 @@
 </tr>
 <tr>
 <td>Jan-Feb 2027</td>
-<td>Paper 3 results, mascon benchmarking, cross-basin interpolation testing</td>
+<td>Paper 3 results, leakage correction validation, cross-basin interpolation testing</td>
 </tr>
 <tr>
 <td>Mar 2027</td>
