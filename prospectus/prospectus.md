@@ -2,6 +2,14 @@
 
 # Advancing Basin-Scale Groundwater Storage Estimation Through Hybrid Spatiotemporal Imputation, EOF-Based Interpolation, and Satellite-Derived Leakage Correction
 
+**Henok Teklu**
+
+Department of Civil and Construction Engineering, Brigham Young University
+
+**Supervisor:** Professor Norm Jones
+
+**Committee:** Professor Gustavious Williams, Professor Jim Nelson, Professor Dan Ames
+
 ---
 
 ## 1. Introduction
