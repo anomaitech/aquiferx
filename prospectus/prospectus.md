@@ -142,11 +142,11 @@ Leave-one-out cross-validation yields interpolation RMSE of 32.3 ft, a 49% reduc
 | May 2026 | Paper 1 submitted to journal; Paper 2 method development in progress, validation ongoing |
 | Jun-Aug 2026 | Paper 2 manuscript drafting; begin cross-basin validation (Africa, South America sites) |
 | Sep 2026 | Paper 2 submission |
-| Sep-Dec 2026 | Paper 3 gridded Lf calibration, covariate propagation, sensitivity analyses |
-| Jan-Feb 2027 | Paper 3 results, leakage correction validation, cross-basin interpolation testing |
-| Mar 2027 | Paper 3 manuscript drafting |
-| Apr 2027 | Paper 3 submission; dissertation compilation |
-| May-Jun 2027 | Dissertation defense and graduation |
+| Sep-Nov 2026 | Paper 3 gridded Lf calibration, covariate propagation, sensitivity analyses |
+| Dec 2026 | Paper 3 results, leakage correction validation, cross-basin interpolation testing |
+| Jan-Feb 2027 | Paper 3 manuscript drafting and submission |
+| Mar 2027 | Dissertation compilation |
+| Apr 2027 | Dissertation defense and graduation |
 
 ---
 
