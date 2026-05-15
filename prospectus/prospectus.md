@@ -16,7 +16,7 @@ Department of Civil and Construction Engineering, Brigham Young University
 
 ### 1.1 Overall Objective and Significance
 
-Groundwater sustains roughly half of global irrigation and a third of municipal water supply, yet it remains the most poorly monitored component of the terrestrial water budget (Scanlon et al., 2023). Jasechko et al. (2024) analyzed 170,000 monitoring wells across 1,693 aquifer systems on six continents and found that 30% exhibit accelerating decline. Reliable basin-scale quantification of groundwater storage change is essential for water-resources planning, yet three methodological barriers stand in the way: (1) temporal gaps in in situ well records that prevent continuous storage estimation; (2) the difficulty of converting sparse point observations into continuous spatial fields; and (3) the coarse resolution of satellite gravimetry (GRACE/GRACE-FO) which introduces signal leakage that must be corrected before groundwater storage can be isolated.
+Groundwater sustains roughly half of global irrigation and a third of municipal water supply, yet it remains the most poorly monitored component of the terrestrial water budget. Jasechko et al. (2024) analyzed 170,000 monitoring wells across 1,693 aquifer systems on six continents and found that 30% exhibit accelerating decline. Reliable basin-scale quantification of groundwater storage change is essential for water-resources planning, yet three methodological barriers stand in the way: (1) temporal gaps in in situ well records that prevent continuous storage estimation; (2) the difficulty of converting sparse point observations into continuous spatial fields; and (3) the coarse resolution of satellite gravimetry (GRACE/GRACE-FO) which introduces signal leakage that must be corrected before groundwater storage can be isolated.
 
 These three barriers form a chain: incomplete well records limit the quality of spatial fields, which in turn limit the fidelity of satellite-derived corrections. This dissertation addresses all three barriers in sequence through three papers, each building on the outputs of the previous:
 
@@ -201,8 +201,6 @@ Rateb, A. & Herring, T. A. (2020). Comparison of Groundwater Storage Changes Fro
 Rodell, M., et al. (2004). The global land data assimilation system. Bulletin of the American Meteorological Society, 85(3), 381-394.
 
 Rojas, R., et al. (2025). Bridging gaps in sparse groundwater data: classical, ensemble, and deep learning approaches for single- and multi-well imputation. Frontiers in Water, 7, 1726853.
-
-Scanlon, B. R., et al. (2023). Global water resources and the role of groundwater in a resilient water future. Nature Reviews Earth & Environment, 4, 87-101.
 
 Senanayake, S., et al. (2024). Deep learning framework with Bayesian data imputation for groundwater levels. Environmental Modelling & Software, 178, 106072.
 
