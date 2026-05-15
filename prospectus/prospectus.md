@@ -44,7 +44,7 @@ To quantify groundwater storage change in the Great Salt Lake Basin from 2002 th
 
 ### 2.2 Background
 
-Three independent lines of evidence bear on basin-scale groundwater storage change. Satellite gravimetry from GRACE/GRACE-FO resolves total water storage anomalies at monthly resolution (Tapley et al., 2004), but the native spatial resolution of approximately 300 km makes basin-scale interpretation subject to signal leakage (Vishwakarma et al., 2018), and isolating the groundwater component requires subtracting auxiliary estimates from land-surface models (Rodell et al., 2004). Land-surface models such as GLDAS provide continuous estimates but inherit assumptions about subsurface representation and anthropogenic withdrawals. In situ monitoring well networks provide direct observations but are temporally sparse.
+Three independent lines of evidence bear on basin-scale groundwater storage change. Satellite gravimetry from GRACE/GRACE-FO resolves total water storage anomalies at monthly resolution (Tapley et al., 2004), but the native spatial resolution of approximately 300 km makes basin-scale interpretation subject to signal leakage (Vishwakarma et al., 2018), and isolating the groundwater component requires subtracting auxiliary estimates from land-surface models (Rodell et al., 2004). In situ monitoring well networks provide direct observations but are temporally sparse.
 
 The GSLB is a closed hydrologic system covering approximately 93,000 km-squared, chosen as the initial validation site for its dense USGS monitoring network, heterogeneous hydrogeology, and concentrated anthropogenic stress along the Wasatch Front.
 
