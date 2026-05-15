@@ -74,8 +74,7 @@ Regional correlation-based approaches represent an intermediate strategy. Levy e
 
 Matrix completion arranges all well records as a partially observed matrix and exploits low-rank structure to infer missing entries from cross-well correlations (Candes and Recht, 2009). Sharma, Kim, and Tayerani Charmchi (2024) evaluated SoftImpute for groundwater levels in the Chao-Phraya River Basin, finding it excels in sparse networks -- but treated it as a standalone method without temporal coupling.
 
-On the temporal side, Liquid Neural Networks with Closed-form Continuous-depth cells (Hasani et al., 2022) model dynamics as continuous-time ODEs, naturally accommodating irregular sampling without resampling. Senanayake et al. (2024) demonstrated 15-25% improvement through transfer learning, and Rojas et al. (2025) found multi-well strategies consistently outperform univariate methods.
-
+On the temporal side, Liquid Neural Networks with Closed-form Continuous-depth cells (Hasani et al., 2022) model dynamics as continuous-time ODEs, naturally accommodating irregular sampling without resampling.
 To the authors' knowledge, matrix completion has not previously been coupled with continuous-time neural networks for groundwater imputation. The MC+LNN framework proposed here addresses this gap: MC provides spatially informed estimates from cross-well correlations, LNN refines using continuous-time dynamics conditioned on auxiliary forcings.
 
 ### 3.3 Methods
@@ -199,10 +198,6 @@ Ramirez, S. G., Williams, G. P., Jones, N. L., Ames, D. P., & Radebaugh, J. (202
 Rateb, A. & Herring, T. A. (2020). Comparison of Groundwater Storage Changes From GRACE Satellites With Monitoring and Modeling of Major U.S. Aquifers. Water Resources Research, 56(12), e2020WR027556.
 
 Rodell, M., et al. (2004). The global land data assimilation system. Bulletin of the American Meteorological Society, 85(3), 381-394.
-
-Rojas, R., et al. (2025). Bridging gaps in sparse groundwater data: classical, ensemble, and deep learning approaches for single- and multi-well imputation. Frontiers in Water, 7, 1726853.
-
-Senanayake, S., et al. (2024). Deep learning framework with Bayesian data imputation for groundwater levels. Environmental Modelling & Software, 178, 106072.
 
 Sharma, Y. K., Kim, S., & Tayerani Charmchi, A. S. (2024). Strategic imputation of groundwater data using machine learning. Groundwater for Sustainable Development, 27, 101300.
 
