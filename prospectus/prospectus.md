@@ -28,7 +28,7 @@ The Great Salt Lake Basin (GSLB) serves as the initial validation site, chosen f
 
 ### 1.2 Specific Objectives
 
-**Multi-Method Groundwater Storage Estimation (Paper 1).** Quantify multi-decadal groundwater storage change in the GSLB (2002-2024) by integrating GRACE-derived, GLDAS-derived, and in situ estimates within a unified framework. Identify the methodological sensitivity to surface-water inclusion and GRACE leakage correction that motivates the spatially distributed approach of Paper 3. *(Submitted to journal.)*
+**Trends in Groundwater Storage in the Great Salt Lake Basin, 2002-2024 (Paper 1).** Quantify multi-decadal groundwater storage change in the GSLB (2002-2024) by integrating GRACE-derived, GLDAS-derived, and in situ estimates within a unified framework. Identify the methodological sensitivity to surface-water inclusion and GRACE leakage correction that motivates the spatially distributed approach of Paper 3. *(Submitted to journal.)*
 
 **Hybrid Spatiotemporal Imputation (Paper 2).** Develop and validate a general-purpose hybrid imputation framework for sparse, irregular groundwater-level time series that couples PCHIP for short gaps with Matrix Completion + Liquid Neural Networks (MC+LNN) for long gaps, using globally available auxiliary climatic forcings.
 
@@ -36,7 +36,7 @@ The Great Salt Lake Basin (GSLB) serves as the initial validation site, chosen f
 
 ---
 
-## 2. Multi-Method Groundwater Storage Estimation (Paper 1)
+## 2. Trends in Groundwater Storage in the Great Salt Lake Basin, 2002-2024 (Paper 1)
 
 ### 2.1 Objective
 
