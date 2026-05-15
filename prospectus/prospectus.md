@@ -1,6 +1,6 @@
 # PhD Prospectus
 
-# Advancing Basin-Scale Groundwater Storage Estimation Through Hybrid Spatiotemporal Imputation, EOF-Based Interpolation, and Satellite-Derived Leakage Correction
+# Advancing Basin-Scale Groundwater Storage Estimation Through Hybrid Spatiotemporal Imputation, Empirical Orthogonal Function (EOF)-Based Interpolation, and Satellite-Derived Leakage Correction
 
 **Henok Teklu**
 
@@ -22,7 +22,7 @@ These three barriers form a chain: incomplete well records limit the quality of 
 
 1. **Paper 1** (submitted to journal) establishes baseline groundwater storage estimates for the Great Salt Lake Basin using multiple independent methods, revealing the sensitivity of GRACE-derived estimates to leakage handling and motivating the need for improved imputation.
 2. **Paper 2** (in development) presents a novel hybrid imputation framework coupling Matrix Completion with Liquid Neural Networks (MC+LNN) that jointly exploits spatial cross-well correlations and continuous-time temporal dynamics -- a coupling not previously explored in the groundwater literature.
-3. **Paper 3** applies the imputed records from Paper 2 to produce spatially continuous groundwater fields via EOF-based interpolation, and uses those fields to derive a pixel-wise GRACE leakage correction grid calibrated against spatially complete in situ data.
+3. **Paper 3** applies the imputed records from Paper 2 to produce spatially continuous groundwater fields via Empirical Orthogonal Function (EOF)-based interpolation, and uses those fields to derive a pixel-wise GRACE leakage correction grid calibrated against spatially complete in situ data.
 
 The Great Salt Lake Basin (GSLB) serves as the initial validation site, chosen for its dense USGS monitoring network (592 eligible wells), heterogeneous hydrogeology, and concentrated anthropogenic pumping. The methods are designed to be general-purpose, using globally available GLDAS auxiliary data with auto-optimized hyperparameters. Validation on additional basins -- including sites in Sub-Saharan Africa and South America -- is planned to demonstrate transferability.
 
@@ -117,7 +117,7 @@ To produce spatially continuous groundwater-level fields from the imputed record
 
 ### 4.2 Background
 
-Converting imputed point-well records to continuous spatial fields requires interpolation. Geostatistical methods, particularly kriging, have been dominant but their stationarity assumptions are frequently violated in heterogeneous basins where water-table elevation spans hundreds to thousands of meters (Ahmadi et al., 2024; Li et al., 2025). Empirical Orthogonal Function (EOF) analysis decomposes spatiotemporal fields into temporal modes and spatial loadings, enabling interpolation by estimating a few smooth spatial scalars rather than hundreds of raw time values.
+Converting imputed point-well records to continuous spatial fields requires interpolation. Geostatistical methods, particularly kriging, have been dominant but their stationarity assumptions are frequently violated in heterogeneous basins where water-table elevation spans hundreds to thousands of meters (Ahmadi et al., 2024; Li et al., 2025). EOF analysis decomposes spatiotemporal fields into temporal modes and spatial loadings, enabling interpolation by estimating a few smooth spatial scalars rather than hundreds of raw time values.
 
 The GRACE partition equation for groundwater storage anomalies requires a leakage correction factor Lf conventionally applied as a basin-uniform scalar. Long et al. (2014) established forward modeling for leakage correction. Ma et al. (2024) demonstrated that sub-regional trends can diverge substantially from basin averages. Tripathi et al. (2022) showed basin-average corrections can be misleading. Li et al. (2024) estimated pixel-scale factors using in situ data. However, all prior pixel-scale approaches have been constrained by the incompleteness of the underlying well records -- the limitation that Paper 2 addresses.
 
